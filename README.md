@@ -6,7 +6,7 @@ and comprehensive import/export capabilities.
 [![codecov](https://codecov.io/gh/mikeleppane/chamber/branch/main/graph/badge.svg)](https://codecov.io/gh/mikeleppane/chamber)
 [![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/CodSpeedHQ/codspeed-rust)
 
-<img alt="Rust" src="https://img.shields.io/badge/Rust-1.85-orange">
+<img alt="Rust" src="https://img.shields.io/badge/Rust-1.88-orange">
 <img alt="License" src="https://img.shields.io/badge/License-MIT-blue">
 
 ## 🌟 Overview
@@ -65,7 +65,7 @@ and other secrets with strong cryptographic guarantees.
 
 ## 🚀 Getting Started
 ### Prerequisites
-- **Rust**: Version 1.85.0 or newer
+- **Rust**: Version 1.88.0 or newer
 - **Operating System**: Windows 11, macOS, or Linux
 - **Terminal**: Modern terminal with Unicode support (recommended)
 

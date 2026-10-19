@@ -83,7 +83,7 @@ body:
     attributes:
       label: Rust Version
       description: Output of `rustc --version`
-      placeholder: rustc 1.85.0 (a4cb52f33 2024-12-05)
+      placeholder: rustc 1.88.0 (6b00bc388 2025-06-23)
     validations:
       required: true
 
