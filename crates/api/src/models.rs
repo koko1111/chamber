@@ -147,6 +147,8 @@ pub struct HealthReportResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReusedPasswordGroup {
+    /// Grouping key only. The digest is never returned to clients.
+    #[serde(default, skip_serializing)]
     pub password_hash: String,
     pub item_names: Vec<String>,
 }

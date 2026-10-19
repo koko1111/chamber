@@ -12,6 +12,8 @@ pub struct TestContext {
     pub temp_dir: TempDir,
     pub master_password: String,
     pub auth_token: Option<String>,
+    /// Same signing key as the router, so tests can mint narrower scopes.
+    pub auth: AuthState,
 }
 
 impl TestContext {
@@ -30,7 +32,8 @@ impl TestContext {
         vault.initialize(master_password)?;
 
         // Create a test router with isolated state
-        let app = create_test_router(vault, vault_manager)?;
+        let auth = AuthState::new();
+        let app = create_test_router(vault, vault_manager, auth.clone())?;
         let server = TestServer::new(app).unwrap();
 
         Ok(Self {
@@ -38,6 +41,7 @@ impl TestContext {
             temp_dir,
             master_password: master_password.to_string(),
             auth_token: None,
+            auth,
         })
     }
 
@@ -139,11 +143,11 @@ impl TestContext {
 }
 
 // Helper function to create a test router
-fn create_test_router(vault: Vault, vault_manager: VaultManager) -> color_eyre::Result<Router> {
+fn create_test_router(vault: Vault, vault_manager: VaultManager, auth: AuthState) -> color_eyre::Result<Router> {
     let state = AppState {
         vault: Arc::new(tokio::sync::Mutex::new(vault)),
         vault_manager: Arc::new(tokio::sync::Mutex::new(vault_manager)),
-        auth: AuthState::new(),
+        auth,
     };
 
     // Use the build_router function from your server

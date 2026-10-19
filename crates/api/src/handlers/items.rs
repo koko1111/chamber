@@ -79,11 +79,7 @@ pub async fn list_items(
             updated_at: DateTime::from_timestamp(item.updated_at.unix_timestamp(), 0).unwrap_or(Utc::now()),
             has_value: !item.value.is_empty(),
             value_length: item.value.len(),
-            preview: if item.value.len() > 20 {
-                Some(format!("{}...", &item.value[..17]))
-            } else {
-                None
-            },
+            preview: secret_preview(&item.value, claims.has_scope("reveal:values")),
         })
         .collect();
 
@@ -127,11 +123,7 @@ pub async fn get_item(
         updated_at: DateTime::from_timestamp(item.updated_at.unix_timestamp(), 0).unwrap_or(Utc::now()),
         has_value: !item.value.is_empty(),
         value_length: item.value.len(),
-        preview: if item.value.len() > 20 {
-            Some(format!("{}...", &item.value[..17]))
-        } else {
-            None
-        },
+        preview: secret_preview(&item.value, claims.has_scope("reveal:values")),
     };
 
     Ok(Json(ApiResponse::new(response)))
@@ -461,13 +453,7 @@ pub async fn search_items(
     let mut items: Vec<ItemResponse> = all_items
         .into_iter()
         .map(|item| {
-            let preview = if item.value.len() > 50 {
-                Some(format!("{}...", &item.value[..47]))
-            } else if !item.value.is_empty() {
-                Some(item.value.clone())
-            } else {
-                None
-            };
+            let preview = secret_preview(&item.value, claims.has_scope("reveal:values"));
 
             ItemResponse {
                 id: item.id,
@@ -515,6 +501,18 @@ pub async fn search_items(
     };
 
     Ok(Json(ApiResponse::new(response)))
+}
+
+/// List, get, and search omit secret bytes.
+///
+/// `reveal:values` is required before any preview could be considered, and even
+/// then the old byte-sliced and full-value previews are not returned. Full values
+/// stay on `get_item_value`. A preview that is reintroduced must use [`str::chars`].
+fn secret_preview(value: &str, can_reveal: bool) -> Option<String> {
+    if !can_reveal || value.chars().next().is_none() {
+        return None;
+    }
+    None
 }
 
 fn apply_search_filters(mut items: Vec<ItemResponse>, params: &SearchParams) -> Vec<ItemResponse> {

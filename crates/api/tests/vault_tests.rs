@@ -23,7 +23,7 @@ async fn test_create_vault_success() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
     ctx.unlock_session().await?;
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     let create_request = json!({
         "name": "Test Vault",
         "category": "personal",
@@ -114,7 +114,7 @@ async fn test_create_vault_empty_password() -> color_eyre::Result<()> {
 async fn test_create_vault_custom_category() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     let create_request = json!({
         "name": "Custom Vault",
         "category": "gaming",
@@ -148,7 +148,7 @@ async fn test_create_vault_custom_category() -> color_eyre::Result<()> {
 async fn test_create_vault_default_category() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     let create_request = json!({
         "name": "Default Category Vault",
         "master_password": "secure_password123",
@@ -188,7 +188,7 @@ async fn test_create_multiple_vaults() -> color_eyre::Result<()> {
     ];
 
     for (name, category, description) in vaults_to_create {
-        let vault_path = ctx.temp_dir.path().join("test_vault.db");
+        let vault_path = confined_vault_db_path();
         let create_request = json!({
             "name": name,
             "category": category,
@@ -223,7 +223,7 @@ async fn test_create_multiple_vaults() -> color_eyre::Result<()> {
 async fn test_list_vaults_after_creation() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // First, create a vault
     let create_request = json!({
         "name": "Listable Vault",
@@ -307,7 +307,7 @@ async fn test_create_vault_various_categories() -> color_eyre::Result<()> {
     ];
 
     for (input_category, expected_category) in categories {
-        let vault_path = ctx.temp_dir.path().join("test_vault.db");
+        let vault_path = confined_vault_db_path();
         let create_request = json!({
             "name": format!("{} Vault", input_category.to_uppercase()),
             "category": input_category,
@@ -341,7 +341,7 @@ async fn test_create_vault_long_name() -> color_eyre::Result<()> {
 
     let long_name = "A".repeat(100); // Very long name
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     let create_request = json!({
         "name": long_name,
         "master_password": "secure_password123",
@@ -370,7 +370,7 @@ async fn test_create_vault_special_characters_in_name() -> color_eyre::Result<()
 
     let special_name = "Test Vault !@#$%^&*()_+-=[]{}|;:,.<>?";
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     let create_request = json!({
         "name": special_name,
         "master_password": "secure_password123",
@@ -397,7 +397,7 @@ async fn test_switch_vault_success() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // First, create a vault to switch to
     let create_request = json!({
         "name": "Switch Target Vault",
@@ -532,7 +532,7 @@ async fn test_switch_between_multiple_vaults() -> color_eyre::Result<()> {
     let mut vault_ids = Vec::new();
 
     for (name, category) in vaults_to_create {
-        let vault_path = ctx.temp_dir.path().join("test_vault.db");
+        let vault_path = confined_vault_db_path();
         let create_request = json!({
             "name": name,
             "category": category,
@@ -594,7 +594,7 @@ async fn test_switch_vault_updates_active_status() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // Create two vaults
     let vault_a_request = json!({
         "name": "Vault A",
@@ -614,7 +614,7 @@ async fn test_switch_vault_updates_active_status() -> color_eyre::Result<()> {
     let vault_a_body: ApiResponse<VaultResponse> = vault_a_response.json();
     let vault_a_id = vault_a_body.data.id;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     let vault_b_request = json!({
         "name": "Vault B",
         "category": "work",
@@ -714,7 +714,7 @@ async fn test_update_vault_success() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // First, create a vault to update
     let create_request = json!({
         "name": "Original Vault",
@@ -768,7 +768,7 @@ async fn test_update_vault_partial() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // First, create a vault to update
     let create_request = json!({
         "name": "Original Vault",
@@ -821,7 +821,7 @@ async fn test_update_vault_name_only() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // Create a vault
     let create_request = json!({
         "name": "Name Update Test",
@@ -867,7 +867,7 @@ async fn test_update_vault_category_to_custom() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // Create a vault with standard category
     let create_request = json!({
         "name": "Category Test Vault",
@@ -912,7 +912,7 @@ async fn test_update_vault_favorite_status() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // Create a vault (default is not favorite)
     let create_request = json!({
         "name": "Favorite Test Vault",
@@ -1056,7 +1056,7 @@ async fn test_update_vault_empty_request() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // Create a vault
     let create_request = json!({
         "name": "Empty Update Test",
@@ -1101,7 +1101,7 @@ async fn test_update_vault_standard_categories() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // Create a vault
     let create_request = json!({
         "name": "Category Update Test",
@@ -1157,7 +1157,7 @@ async fn test_update_vault_description_to_empty() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
 
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
     // Create a vault with a description
     let create_request = json!({
         "name": "Description Test",
@@ -1229,7 +1229,7 @@ async fn test_update_vault_invalid_uuid() -> color_eyre::Result<()> {
 async fn test_delete_vault_success() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
-    let vault_path = ctx.temp_dir.path().join("test_vault.db");
+    let vault_path = confined_vault_db_path();
 
     // First, create a vault to delete
     let create_request = json!({
@@ -1282,6 +1282,166 @@ async fn test_delete_vault_success() -> color_eyre::Result<()> {
     let list_body: ApiResponse<Vec<VaultResponse>> = list_response.json();
     let deleted_vault = list_body.data.iter().find(|v| v.id == vault_id);
     assert!(deleted_vault.is_none(), "Deleted vault should not appear in list");
+
+    Ok(())
+}
+
+fn confined_vault_db_path() -> std::path::PathBuf {
+    let dir = dirs::config_dir().expect("config dir").join("chamber");
+    std::fs::create_dir_all(&dir).expect("chamber config dir");
+    dir.join(format!("wat31-{}-{}.db", std::process::id(), uuid::Uuid::new_v4()))
+}
+
+fn assert_path_rejected(body: &serde_json::Value) {
+    let message = body["error"]["message"].as_str().unwrap_or("");
+    assert!(
+        message.contains("vault config directory") || message.contains("escapes"),
+        "expected a path confinement error, got {body}"
+    );
+}
+
+#[tokio::test]
+async fn test_create_vault_rejects_path_outside_config_dir() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    ctx.login().await?;
+
+    let outside = std::env::temp_dir().join(format!("chamber-wat31-outside-{}.db", uuid::Uuid::new_v4()));
+    let create_request = json!({
+        "name": "Outside Vault",
+        "category": "personal",
+        "master_password": "default_password",
+        "path": outside
+    });
+
+    let response = ctx
+        .server
+        .post("/api/v1/vaults")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .json(&create_request)
+        .await;
+
+    response.assert_status(StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = response.json();
+    assert_path_rejected(&body);
+    assert!(!outside.exists(), "outside vault file must not be created");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_vault_rejects_parent_dir_escape() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    ctx.login().await?;
+
+    let config = dirs::config_dir().expect("config dir").join("chamber");
+    std::fs::create_dir_all(&config)?;
+    let escape = config
+        .join("..")
+        .join("..")
+        .join(format!("wat31-escape-{}.db", uuid::Uuid::new_v4()));
+    let create_request = json!({
+        "name": "Escape Vault",
+        "master_password": "default_password",
+        "path": escape
+    });
+
+    let response = ctx
+        .server
+        .post("/api/v1/vaults")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .json(&create_request)
+        .await;
+
+    response.assert_status(StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = response.json();
+    assert_path_rejected(&body);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_import_and_export_reject_paths_outside_config_dir() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    ctx.login().await?;
+    ctx.unlock_session().await?;
+
+    let outside_import = std::env::temp_dir().join(format!("chamber-wat31-import-{}.json", uuid::Uuid::new_v4()));
+    std::fs::write(&outside_import, b"[]")?;
+    let import_request = json!({
+        "format": "json",
+        "path": outside_import
+    });
+    let import_response = ctx
+        .server
+        .post("/api/v1/import")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .json(&import_request)
+        .await;
+    import_response.assert_status(StatusCode::BAD_REQUEST);
+    let import_body: serde_json::Value = import_response.json();
+    assert_path_rejected(&import_body);
+
+    let outside_export = std::env::temp_dir().join(format!("chamber-wat31-export-{}.json", uuid::Uuid::new_v4()));
+    let export_request = json!({
+        "format": "json",
+        "path": outside_export
+    });
+    let export_response = ctx
+        .server
+        .post("/api/v1/export")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .json(&export_request)
+        .await;
+    export_response.assert_status(StatusCode::BAD_REQUEST);
+    let export_body: serde_json::Value = export_response.json();
+    assert_path_rejected(&export_body);
+    assert!(!outside_export.exists(), "export must not write outside the config dir");
+
+    let escape = format!("../wat31-export-escape-{}.json", uuid::Uuid::new_v4());
+    let escape_request = json!({
+        "format": "json",
+        "path": escape
+    });
+    let escape_response = ctx
+        .server
+        .post("/api/v1/export")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .json(&escape_request)
+        .await;
+    escape_response.assert_status(StatusCode::BAD_REQUEST);
+    assert_path_rejected(&escape_response.json());
+
+    let dry_run = ctx
+        .server
+        .post("/api/v1/import/dry-run")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .json(&import_request)
+        .await;
+    dry_run.assert_status(StatusCode::BAD_REQUEST);
+    assert_path_rejected(&dry_run.json());
+
+    let config = dirs::config_dir().expect("config dir").join("chamber");
+    std::fs::create_dir_all(&config)?;
+    let link = config.join(format!("wat31-link-{}", uuid::Uuid::new_v4()));
+    std::os::unix::fs::symlink("/tmp", &link)?;
+    let linked = link.join(format!("vault-{}.db", uuid::Uuid::new_v4()));
+    let link_response = ctx
+        .server
+        .post("/api/v1/vaults")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .json(&json!({
+            "name": "Linked Vault",
+            "master_password": "default_password",
+            "path": linked
+        }))
+        .await;
+    let _ = std::fs::remove_file(&link);
+    link_response.assert_status(StatusCode::BAD_REQUEST);
+    assert_path_rejected(&link_response.json());
+    assert!(
+        !linked.exists(),
+        "symlink must not create a vault outside the config dir"
+    );
 
     Ok(())
 }
