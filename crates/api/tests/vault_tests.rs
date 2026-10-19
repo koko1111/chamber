@@ -18,13 +18,6 @@ pub struct VaultResponse {
     pub is_active: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct TestClaims {
-    sub: String,
-    scope: String,
-    exp: i64,
-}
-
 #[tokio::test]
 async fn test_create_vault_success() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;

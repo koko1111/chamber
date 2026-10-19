@@ -1019,7 +1019,7 @@ fn draw_items_section(f: &mut Frame, app: &App, area: Rect) {
             ItemKind::OAuth => ("🎫", c_badge_oauth()),
         };
 
-        let created_date = match time::format_description::parse("[year]-[month]-[day]") {
+        let created_date = match time::format_description::parse_borrowed::<1>("[year]-[month]-[day]") {
             Ok(format) => item
                 .created_at
                 .format(&format)
