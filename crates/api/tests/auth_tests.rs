@@ -288,7 +288,11 @@ async fn test_token_issued_before_logout_is_rejected() -> color_eyre::Result<()>
     let mut ctx = TestContext::new()?;
     let token = ctx.login().await?;
 
-    let logout = ctx.server.post("/api/v1/auth/logout").authorization_bearer(&token).await;
+    let logout = ctx
+        .server
+        .post("/api/v1/auth/logout")
+        .authorization_bearer(&token)
+        .await;
     logout.assert_status_ok();
 
     let response = ctx.server.get("/api/v1/items").authorization_bearer(&token).await;
@@ -302,7 +306,11 @@ async fn test_token_issued_before_session_lock_is_rejected() -> color_eyre::Resu
     let mut ctx = TestContext::new()?;
     let token = ctx.login().await?;
 
-    let lock = ctx.server.post("/api/v1/session/lock").authorization_bearer(&token).await;
+    let lock = ctx
+        .server
+        .post("/api/v1/session/lock")
+        .authorization_bearer(&token)
+        .await;
     lock.assert_status_ok();
 
     let response = ctx.server.get("/api/v1/items").authorization_bearer(&token).await;
@@ -318,7 +326,11 @@ async fn test_logout_blocks_item_decrypt_until_unlock() -> color_eyre::Result<()
     let secret = "logout-secret-value-not-for-locked-session";
     let item_id = ctx.create_test_item("logout-secret", "note", secret).await?;
 
-    let logout = ctx.server.post("/api/v1/auth/logout").authorization_bearer(&token).await;
+    let logout = ctx
+        .server
+        .post("/api/v1/auth/logout")
+        .authorization_bearer(&token)
+        .await;
     logout.assert_status_ok();
 
     let denied = ctx
@@ -352,7 +364,11 @@ async fn test_session_lock_blocks_item_decrypt_until_unlock() -> color_eyre::Res
     let secret = "lock-secret-value-not-for-locked-session";
     let item_id = ctx.create_test_item("lock-secret", "note", secret).await?;
 
-    let lock = ctx.server.post("/api/v1/session/lock").authorization_bearer(&token).await;
+    let lock = ctx
+        .server
+        .post("/api/v1/session/lock")
+        .authorization_bearer(&token)
+        .await;
     lock.assert_status_ok();
 
     let denied = ctx
@@ -384,7 +400,11 @@ async fn test_login_expires_at_is_about_one_hour() -> color_eyre::Result<()> {
     let ctx = TestContext::new()?;
     let before = chrono::Utc::now();
 
-    let response = ctx.server.post("/api/v1/auth/login").json(&sample_login_request()).await;
+    let response = ctx
+        .server
+        .post("/api/v1/auth/login")
+        .json(&sample_login_request())
+        .await;
     response.assert_status_ok();
 
     let body: ApiResponse<LoginResponse> = response.json();

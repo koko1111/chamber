@@ -1,12 +1,19 @@
 use axum::Json;
 use axum::extract::State;
-use chrono::{DateTime, Duration, Utc};
 use std::sync::Arc;
 
 use crate::auth::AuthenticatedUser;
 use crate::error::{ApiError, ApiResult};
 use crate::models::{ApiResponse, LoginRequest, LoginResponse};
 use crate::server::AppState;
+
+/// Invalidates outstanding JWTs and drops the in-memory vault key.
+async fn revoke_session(state: &AppState) -> ApiResult<()> {
+    state.auth.rotate_secret()?;
+    state.auth.set_vault_unlocked(false);
+    state.vault.lock().await.lock();
+    Ok(())
+}
 
 /// # Errors
 ///
@@ -46,8 +53,7 @@ pub async fn login(
         "manage:vaults".to_string(),
     ];
 
-    let token = state.auth.generate_token(scopes.clone())?;
-    let expires_at: DateTime<Utc> = Utc::now() + Duration::hours(24);
+    let (token, expires_at) = state.auth.generate_token(scopes.clone())?;
 
     let response = LoginResponse {
         token,
@@ -62,13 +68,12 @@ pub async fn login(
 ///
 /// This function returns an error if:
 /// - The authentication token is invalid or expired
-/// - The vault state cannot be updated due to internal errors
+/// - The signing key cannot be rotated
 pub async fn logout(
     State(state): State<Arc<AppState>>,
     AuthenticatedUser(_claims): AuthenticatedUser,
 ) -> ApiResult<Json<ApiResponse<String>>> {
-    // Lock the vault
-    state.auth.set_vault_unlocked(false);
+    revoke_session(&state).await?;
 
     Ok(Json(ApiResponse::new("Logged out successfully".to_string())))
 }
@@ -77,13 +82,12 @@ pub async fn logout(
 ///
 /// This function returns an error if:
 /// - The authentication token is invalid or expired
-/// - The vault state cannot be updated due to internal errors
+/// - The signing key cannot be rotated
 pub async fn session_lock(
     State(state): State<Arc<AppState>>,
     AuthenticatedUser(_claims): AuthenticatedUser,
 ) -> ApiResult<Json<ApiResponse<String>>> {
-    // Lock the vault and invalidate session
-    state.auth.set_vault_unlocked(false);
+    revoke_session(&state).await?;
 
     Ok(Json(ApiResponse::new("Session locked successfully".to_string())))
 }

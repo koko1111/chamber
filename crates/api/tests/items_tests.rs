@@ -86,7 +86,7 @@ async fn test_create_item_without_auth() -> color_eyre::Result<()> {
 async fn test_create_item_vault_locked() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     ctx.login().await?;
-    // Lock the vault after login to test the locked vault scenario
+    // Session lock revokes the token, so a later item write is unauthorized.
     let lock_response = ctx
         .server
         .post("/api/v1/session/lock")
@@ -102,7 +102,7 @@ async fn test_create_item_vault_locked() -> color_eyre::Result<()> {
         .json(&create_request)
         .await;
 
-    response.assert_status_bad_request();
+    response.assert_status_unauthorized();
 
     Ok(())
 }

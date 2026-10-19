@@ -422,6 +422,11 @@ impl Vault {
         self.key.is_some()
     }
 
+    /// Drops the in-memory vault key so item routes cannot decrypt until the next unlock.
+    pub fn lock(&mut self) {
+        self.key = None;
+    }
+
     /// Retrieves a list of items from the database, decrypting their stored values.
     ///
     /// # Returns
