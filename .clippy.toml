@@ -19,7 +19,7 @@ disallowed-macros = [
 ]
 
 # Enforce MSRV (Minimum Supported Rust Version)
-msrv = "1.85.0"
+msrv = "1.88.0"
 
 # Allow certain names that would normally trigger warnings
 allowed-duplicate-crates = []
