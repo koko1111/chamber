@@ -1,6 +1,7 @@
 use crate::app;
 use crate::vault_selector::{VaultAction, VaultSelector, VaultSelectorMode};
 use async_trait::async_trait;
+use chamber_backup::BackgroundService;
 use chamber_import_export::{ExportFormat, export_items, import_items};
 use chamber_password_gen::PasswordConfig;
 use chamber_vault::{AutoLockCallback, AutoLockConfig, AutoLockService, Item, ItemKind, NewItem, Vault, VaultManager};
@@ -163,6 +164,7 @@ pub struct App {
     pub scroll_offset: usize,
     pub add_value_textarea: TextArea<'static>,
     pub auto_lock_service: Option<Arc<AutoLockService>>,
+    backup_service: Option<BackgroundService<Vault>>,
     pub auto_locked: bool,
     pub countdown_info: Option<CountdownInfo>,
 
@@ -303,6 +305,7 @@ impl App {
                 textarea
             },
             auto_lock_service,
+            backup_service: None,
             auto_locked: false,
             countdown_info: None,
 
@@ -399,6 +402,7 @@ impl App {
 
         // Always try to unlock (works for both setup and normal mode)
         if let Ok(()) = self.vault.unlock(&self.master_input) {
+            self.start_background_backups();
             self.refresh_items()?;
             self.screen = Screen::Main;
             self.error = None;
@@ -413,6 +417,35 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Starts automatic backups on a second connection to the vault that was just unlocked.
+    ///
+    /// The process-level vault opened before the TUI prompt stays locked, so the backup
+    /// thread has to use this unlocked vault. `master_input` is still populated here.
+    fn start_background_backups(&mut self) {
+        if self.backup_service.is_some() || !self.vault.is_unlocked() {
+            return;
+        }
+
+        let Ok(config) = self.vault.get_backup_config() else {
+            return;
+        };
+        if !config.enabled {
+            return;
+        }
+
+        let path = self.vault.db_path().to_path_buf();
+        let Ok(mut backup_vault) = Vault::open_or_create(Some(&path)) else {
+            return;
+        };
+        if backup_vault.unlock(&self.master_input).is_err() {
+            return;
+        }
+
+        let service = BackgroundService::new(backup_vault, config);
+        service.start();
+        self.backup_service = Some(service);
     }
 
     /// Refreshes the list of items and updates the filtered items.
@@ -1064,7 +1097,7 @@ impl App {
         self.status_message = None;
     }
 
-    pub fn is_in_input_mode(&self) -> bool {
+    pub const fn is_in_input_mode(&self) -> bool {
         match self.screen {
             Screen::AddItem
             | Screen::EditItem
@@ -1408,5 +1441,72 @@ impl App {
     // Synchronous method for the drawing function
     pub const fn get_countdown_info(&self) -> Option<&CountdownInfo> {
         self.countdown_info.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chamber_vault::BackupConfig;
+    use std::time::Duration;
+
+    #[test]
+    fn test_unlock_starts_backup_thread_that_lists_items() {
+        let config_home = std::env::temp_dir().join(format!(
+            "chamber_ui_backup_{}_{}",
+            std::process::id(),
+            time::OffsetDateTime::now_utc().unix_timestamp_nanos()
+        ));
+        std::fs::create_dir_all(&config_home).unwrap();
+        let previous = std::env::var_os("XDG_CONFIG_HOME");
+        // Isolated registry so the test does not touch the real config directory.
+        unsafe { std::env::set_var("XDG_CONFIG_HOME", &config_home) };
+
+        let password = "UnlockKey1";
+        let backup_dir = config_home.join("backups");
+        {
+            let mut vault = Vault::open_default().unwrap();
+            vault.initialize(password).unwrap();
+            let config = BackupConfig {
+                enabled: true,
+                backup_dir: backup_dir.clone(),
+                compress: false,
+                verify_after_backup: false,
+                format: "json".to_string(),
+                ..BackupConfig::default()
+            };
+            vault.set_backup_config(&config).unwrap();
+        }
+
+        let mut app = App::new().unwrap();
+        assert!(!app.master_mode_is_setup);
+        app.master_input = password.to_string();
+        let unlocked = app.unlock();
+
+        let started = std::time::Instant::now();
+        let mut found = false;
+        while started.elapsed() < Duration::from_secs(5) {
+            if let Ok(entries) = std::fs::read_dir(&backup_dir) {
+                if entries.flatten().any(|entry| entry.path().is_file()) {
+                    found = true;
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+
+        if let Some(previous) = previous {
+            unsafe { std::env::set_var("XDG_CONFIG_HOME", previous) };
+        } else {
+            unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+        }
+
+        unlocked.unwrap();
+        assert!(app.error.is_none(), "unlock failed: {:?}", app.error);
+        assert!(app.screen == Screen::Main);
+        assert!(
+            found,
+            "with backups enabled, list_items should succeed on the backup thread after unlock"
+        );
     }
 }

@@ -1,6 +1,6 @@
 use chamber_backup::BackupManager;
 use chamber_import_export::{detect_format_from_extension, import_items};
-use chamber_vault::{BackupConfig, Vault};
+use chamber_vault::{BackupConfig, NewItem, Vault};
 use clap::Subcommand;
 use color_eyre::eyre::eyre;
 use std::path::{Path, PathBuf};
@@ -255,7 +255,7 @@ fn handle_configure(
 fn handle_backup_now(mut vault: Vault, output: Option<PathBuf>, force: bool) -> color_eyre::Result<()> {
     // Unlock vault if needed
     if !vault.is_unlocked() {
-        let password = rpassword::prompt_password("Enter master password: ")?;
+        let password = prompt_master_password("Enter master password: ")?;
         vault.unlock(&password)?;
     }
 
@@ -367,8 +367,8 @@ fn handle_restore_backup(mut vault: Vault, backup_path: &Path, skip_confirmation
         }
     }
 
-    // Unlock vault
-    let password = rpassword::prompt_password("Enter master password: ")?;
+    // Unlock vault so a bad password fails before any database is replaced.
+    let password = prompt_master_password("Enter master password: ")?;
     vault.unlock(&password)?;
 
     // Detect backup format
@@ -380,23 +380,120 @@ fn handle_restore_backup(mut vault: Vault, backup_path: &Path, skip_confirmation
 
     println!("Found {} items in backup", items.len());
 
-    // Clear existing items (if user confirmed)
-    let existing_items = vault.list_items()?;
-    for item in existing_items {
-        vault.delete_item(item.id)?;
+    if items.is_empty() {
+        return Err(eyre!("Backup contains no items; the current vault was left unchanged"));
     }
 
-    // Import new items
-    let mut imported_count = 0;
-    for item in items {
-        match vault.create_item(&item) {
-            Ok(()) => imported_count += 1,
-            Err(e) => println!("⚠️  Failed to import '{}': {}", item.name, e),
+    let live_path = vault.db_path().to_path_buf();
+    let temp_path = temporary_restore_path(&live_path);
+    let imported_count = match import_into_temporary_vault(&temp_path, &password, &items) {
+        Ok(count) if count > 0 => count,
+        Ok(_) => {
+            remove_sqlite_family(&temp_path);
+            return Err(eyre!(
+                "Backup import produced no items; the current vault was left unchanged"
+            ));
         }
+        Err(err) => {
+            remove_sqlite_family(&temp_path);
+            return Err(eyre!("{err}. The current vault was left unchanged"));
+        }
+    };
+
+    // Close the live connection before renaming its database, wal, and shm files.
+    drop(vault);
+    if let Err(err) = replace_live_database(&live_path, &temp_path) {
+        remove_sqlite_family(&temp_path);
+        return Err(err);
     }
 
     println!("✅ Successfully imported {imported_count} items from backup");
     Ok(())
+}
+
+fn temporary_restore_path(live_path: &Path) -> PathBuf {
+    let mut name = live_path.as_os_str().to_os_string();
+    name.push(".restore-tmp");
+    PathBuf::from(name)
+}
+
+fn sqlite_family(path: &Path) -> [PathBuf; 3] {
+    let mut wal = path.as_os_str().to_os_string();
+    wal.push("-wal");
+    let mut shm = path.as_os_str().to_os_string();
+    shm.push("-shm");
+    [path.to_path_buf(), PathBuf::from(wal), PathBuf::from(shm)]
+}
+
+fn remove_sqlite_family(path: &Path) {
+    for file in sqlite_family(path) {
+        let _ = std::fs::remove_file(file);
+    }
+}
+
+fn import_into_temporary_vault(temp_path: &Path, password: &str, items: &[NewItem]) -> color_eyre::Result<usize> {
+    let mut temp_vault = Vault::open_or_create(Some(temp_path))?;
+    temp_vault.initialize(password)?;
+    temp_vault.unlock(password)?;
+
+    let mut imported_count = 0usize;
+    for item in items {
+        temp_vault
+            .create_item(item)
+            .map_err(|err| eyre!("Failed to import '{}': {err}", item.name))?;
+        imported_count += 1;
+    }
+
+    // Drop the connection so the temporary database and its sidecars can be renamed.
+    drop(temp_vault);
+    Ok(imported_count)
+}
+
+fn replace_live_database(live_path: &Path, temp_path: &Path) -> color_eyre::Result<()> {
+    let live_files = sqlite_family(live_path);
+    let temp_files = sqlite_family(temp_path);
+    let mut parked: Vec<(PathBuf, PathBuf)> = Vec::new();
+
+    for live_file in &live_files {
+        if !live_file.exists() {
+            continue;
+        }
+        let mut parked_name = live_file.as_os_str().to_os_string();
+        parked_name.push(".pre-restore");
+        let parked_path = PathBuf::from(parked_name);
+        if let Err(err) = std::fs::rename(live_file, &parked_path) {
+            restore_parked(&parked);
+            return Err(eyre!("Failed to move {} aside: {err}", live_file.display()));
+        }
+        parked.push((parked_path, live_file.clone()));
+    }
+
+    let mut installed: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for (temp_file, live_file) in temp_files.iter().zip(live_files.iter()) {
+        if !temp_file.exists() {
+            continue;
+        }
+        if let Err(err) = std::fs::rename(temp_file, live_file) {
+            for (installed_live, installed_temp) in installed.iter().rev() {
+                let _ = std::fs::rename(installed_live, installed_temp);
+            }
+            restore_parked(&parked);
+            return Err(eyre!("Failed to replace vault database: {err}"));
+        }
+        installed.push((live_file.clone(), temp_file.clone()));
+    }
+
+    for (parked_path, _) in &parked {
+        let _ = std::fs::remove_file(parked_path);
+    }
+    remove_sqlite_family(temp_path);
+    Ok(())
+}
+
+fn restore_parked(parked: &[(PathBuf, PathBuf)]) {
+    for (parked_path, original) in parked.iter().rev() {
+        let _ = std::fs::rename(parked_path, original);
+    }
 }
 
 fn handle_verify_backup(backup_path: &PathBuf) -> color_eyre::Result<()> {
@@ -528,6 +625,14 @@ fn print_backup_config(config: &BackupConfig) {
             "❌ Disabled"
         }
     );
+}
+
+fn prompt_master_password(prompt: &str) -> color_eyre::Result<String> {
+    #[cfg(test)]
+    if let Ok(value) = std::env::var("CHAMBER_TEST_MASTER_KEY") {
+        return Ok(value);
+    }
+    Ok(rpassword::prompt_password(prompt)?)
 }
 
 fn verify_backup_file(backup_path: &std::path::Path) -> color_eyre::Result<()> {
