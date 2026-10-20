@@ -700,6 +700,134 @@ async fn test_search_items_pagination() -> color_eyre::Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_read_scopes_omit_secret_bytes() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    ctx.login().await?;
+    ctx.unlock_session().await?;
+
+    // Longer than the old 50-byte search preview so the full value used to be sliced,
+    // and longer than the 20-byte list preview. The sentinel sits inside both slices.
+    let secret = "SENTINEL-SECRET-VALUE-abcdefghijklmnopqrstuvwxyz0123456789";
+    let item_id = ctx.create_test_item("Listed Secret", "password", secret).await?;
+
+    let (read_token, _) = ctx
+        .auth
+        .generate_token(vec!["read:items".to_string()])
+        .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
+    let list_response = ctx.server.get("/api/v1/items").authorization_bearer(&read_token).await;
+    list_response.assert_status_ok();
+    let list_body = list_response.text();
+    assert!(!list_body.contains("SENTINEL"), "list leaked secret bytes: {list_body}");
+    assert!(!list_body.contains(secret), "list leaked the full secret");
+    let listed: ApiResponse<ListItemsResponse> = serde_json::from_str(&list_body)?;
+    assert!(listed.data.items.iter().all(|item| item.preview.is_none()));
+
+    let get_response = ctx
+        .server
+        .get(&format!("/api/v1/items/{item_id}"))
+        .authorization_bearer(&read_token)
+        .await;
+    get_response.assert_status_ok();
+    let get_body = get_response.text();
+    assert!(!get_body.contains("SENTINEL"), "get leaked secret bytes: {get_body}");
+    let fetched: ApiResponse<ItemResponse> = serde_json::from_str(&get_body)?;
+    assert!(fetched.data.preview.is_none());
+
+    let (search_token, _) = ctx
+        .auth
+        .generate_token(vec!["vault:read".to_string()])
+        .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
+    let search_response = ctx
+        .server
+        .get("/api/v1/items/search?q=Listed&limit=10")
+        .authorization_bearer(&search_token)
+        .await;
+    search_response.assert_status_ok();
+    let search_body = search_response.text();
+    assert!(
+        !search_body.contains("SENTINEL"),
+        "search leaked secret bytes: {search_body}"
+    );
+    assert!(!search_body.contains(secret), "search leaked the full secret");
+    let searched: ApiResponse<SearchResponse> = serde_json::from_str(&search_body)?;
+    assert!(searched.data.items.iter().all(|item| item.preview.is_none()));
+
+    // The login token includes `read:items`, `vault:read`, and `reveal:values`.
+    // List and search still must not carry secret characters; reveal is a separate route.
+    let full_list = ctx
+        .server
+        .get("/api/v1/items")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .await;
+    full_list.assert_status_ok();
+    assert!(!full_list.text().contains("SENTINEL"));
+    let full_search = ctx
+        .server
+        .get("/api/v1/items/search?q=Listed&limit=10")
+        .authorization_bearer(ctx.auth_token.as_ref().unwrap())
+        .await;
+    full_search.assert_status_ok();
+    assert!(!full_search.text().contains("SENTINEL"));
+
+    // Full values stay available on the reveal endpoint.
+    let (reveal_token, _) = ctx
+        .auth
+        .generate_token(vec!["reveal:values".to_string()])
+        .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
+    let value_response = ctx
+        .server
+        .get(&format!("/api/v1/items/{item_id}/value"))
+        .authorization_bearer(&reveal_token)
+        .await;
+    value_response.assert_status_ok();
+    let revealed: ApiResponse<ItemWithValueResponse> = value_response.json();
+    assert_eq!(revealed.data.value, secret);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_list_get_search_multibyte_secret_does_not_panic() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    ctx.login().await?;
+    ctx.unlock_session().await?;
+
+    // 30 × U+00E9 is 60 bytes. Byte indexes 17 and 47 fall in the middle of a character.
+    let secret = "é".repeat(30);
+    let item_id = ctx.create_test_item("Multibyte Secret", "password", &secret).await?;
+
+    let (read_token, _) = ctx
+        .auth
+        .generate_token(vec!["read:items".to_string()])
+        .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
+    let list_response = ctx.server.get("/api/v1/items").authorization_bearer(&read_token).await;
+    list_response.assert_status_ok();
+    assert!(!list_response.text().contains('é'));
+
+    let get_response = ctx
+        .server
+        .get(&format!("/api/v1/items/{item_id}"))
+        .authorization_bearer(&read_token)
+        .await;
+    get_response.assert_status_ok();
+    assert!(!get_response.text().contains('é'));
+
+    let (search_token, _) = ctx
+        .auth
+        .generate_token(vec!["vault:read".to_string()])
+        .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
+    let search_response = ctx
+        .server
+        .get("/api/v1/items/search?q=Multibyte&limit=10")
+        .authorization_bearer(&search_token)
+        .await;
+    search_response.assert_status_ok();
+    assert!(!search_response.text().contains('é'));
+
+    Ok(())
+}
+
 // ============================================================================
 // Statistics Tests
 // ============================================================================

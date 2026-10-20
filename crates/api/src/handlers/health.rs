@@ -6,6 +6,8 @@ use axum::Json;
 use axum::extract::State;
 use chamber_vault::ItemKind;
 use chrono::Utc;
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -73,19 +75,20 @@ pub async fn health_report(
         .map(|item| item.name.clone())
         .collect();
 
-    // Analyze reused passwords
+    // Group reused passwords with an HMAC keyed by the server secret.
+    // The digest is not copied onto the response.
+    let signing_key = state.auth.signing_key_bytes()?;
     let mut password_groups: HashMap<String, Vec<String>> = HashMap::new();
     for item in &password_items {
-        // Use a simple hash of the password value (in production, use proper hashing)
-        let hash = format!("{:x}", md5::compute(&item.value));
+        let hash = keyed_password_digest(&signing_key, &item.value)?;
         password_groups.entry(hash).or_default().push(item.name.clone());
     }
 
     let reused_passwords: Vec<ReusedPasswordGroup> = password_groups
         .into_iter()
         .filter(|(_, names)| names.len() > 1)
-        .map(|(hash, names)| ReusedPasswordGroup {
-            password_hash: hash,
+        .map(|(_hash, names)| ReusedPasswordGroup {
+            password_hash: String::new(),
             item_names: names,
         })
         .collect();
@@ -152,6 +155,20 @@ pub async fn health_report(
     };
 
     Ok(Json(ApiResponse::new(response)))
+}
+
+fn keyed_password_digest(secret: &[u8], value: &str) -> ApiResult<String> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret)
+        .map_err(|error| ApiError::InternalError(format!("Failed to key password digest: {error}")))?;
+    mac.update(value.as_bytes());
+    let bytes = mac.finalize().into_bytes();
+    let mut hex = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        hex.push(char::from(HEX[usize::from(byte >> 4)]));
+        hex.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    Ok(hex)
 }
 
 /// # Errors

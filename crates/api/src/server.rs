@@ -1,13 +1,14 @@
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    http::{Method, header::CONTENT_TYPE},
+    http::{HeaderValue, Method, header::CONTENT_TYPE},
     middleware,
     routing::{delete, get, patch, post, put},
 };
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info, warn};
 
 use crate::auth::{AuthState, auth_middleware};
@@ -53,7 +54,7 @@ impl ApiServer {
     pub async fn serve(self) -> color_eyre::Result<()> {
         let addr = self.listener.local_addr()?;
         info!("API server listening on http://{}", addr);
-        warn!("API server is running on localhost only - not accessible from other machines");
+        warn!("{}", bind_warning(addr));
 
         axum::serve(self.listener, self.app).await?;
         Ok(())
@@ -74,7 +75,7 @@ pub fn build_router(state: Arc<AppState>) -> color_eyre::Result<Router> {
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::PATCH])
         .allow_headers([CONTENT_TYPE])
-        .allow_origin(Any);
+        .allow_origin(AllowOrigin::predicate(|origin, _parts| is_loopback_origin(origin)));
 
     let app = Router::new()
         .route("/api/v1/health", get(handlers::health))
@@ -118,4 +119,78 @@ pub fn build_router(state: Arc<AppState>) -> color_eyre::Result<Router> {
         .with_state(state);
 
     Ok(app)
+}
+
+fn bind_warning(addr: SocketAddr) -> String {
+    if addr.ip().is_loopback() {
+        "API server is running on localhost only - not accessible from other machines".to_string()
+    } else {
+        format!("API server bind address {addr} is not loopback")
+    }
+}
+
+fn is_loopback_origin(origin: &HeaderValue) -> bool {
+    let Ok(origin) = origin.to_str() else {
+        return false;
+    };
+    let Some((_, rest)) = origin.split_once("://") else {
+        return false;
+    };
+    let host_port = rest.split(['/', '?', '#']).next().unwrap_or("");
+    if host_port.is_empty() {
+        return false;
+    }
+    let host = if let Some(stripped) = host_port.strip_prefix('[') {
+        stripped.split(']').next().unwrap_or("")
+    } else {
+        host_port.split(':').next().unwrap_or("")
+    };
+    host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" || host == "::1"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+    #[test]
+    fn localhost_warning_matches_bind_address() {
+        let loopback = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080);
+        assert!(bind_warning(loopback).contains("localhost only"));
+
+        let unspecified = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080);
+        let warning = bind_warning(unspecified);
+        assert!(warning.contains("not loopback"));
+        assert!(!warning.contains("localhost only"));
+
+        let ipv6 = SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 1);
+        assert!(bind_warning(ipv6).contains("localhost only"));
+    }
+
+    #[test]
+    fn cors_origin_allows_loopback_only() {
+        let allowed = [
+            "http://localhost",
+            "http://localhost:3000",
+            "https://127.0.0.1:4173",
+            "http://[::1]:3000",
+            "http://LocalHost:9",
+        ];
+        for origin in allowed {
+            let value = HeaderValue::from_str(origin).unwrap();
+            assert!(is_loopback_origin(&value), "{origin} should be accepted");
+        }
+
+        let rejected = [
+            "https://evil.example",
+            "http://192.168.1.10:3000",
+            "http://localhost.evil.example",
+            "http://127.0.0.1.evil.example",
+            "null",
+        ];
+        for origin in rejected {
+            let value = HeaderValue::from_str(origin).unwrap();
+            assert!(!is_loopback_origin(&value), "{origin} should be rejected");
+        }
+    }
 }

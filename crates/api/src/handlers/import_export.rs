@@ -1,8 +1,10 @@
 use axum::Json;
 use axum::extract::State;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::Path;
 use std::sync::Arc;
+
+use crate::paths::confine_to_vault_config;
 
 use crate::auth::AuthenticatedUser;
 use crate::error::{ApiError, ApiResult};
@@ -82,7 +84,7 @@ pub async fn import_items_handler(
     }
 
     let format = parse_export_format(&request.format)?;
-    let path = PathBuf::from(&request.path);
+    let path = confine_to_vault_config(Path::new(&request.path))?;
 
     if !path.exists() {
         return Err(ApiError::BadRequest("File does not exist".to_string()));
@@ -155,7 +157,7 @@ pub async fn export_items_handler(
     }
 
     let format = parse_export_format(&request.format)?;
-    let path = PathBuf::from(&request.path);
+    let path = confine_to_vault_config(Path::new(&request.path))?;
 
     // Create parent directories if they don't exist
     if let Some(parent) = path.parent() {
@@ -220,7 +222,7 @@ pub async fn dry_run_import(
     }
 
     let format = parse_export_format(&request.format)?;
-    let path = PathBuf::from(&request.path);
+    let path = confine_to_vault_config(Path::new(&request.path))?;
 
     if !path.exists() {
         return Err(ApiError::BadRequest("File does not exist".to_string()));

@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::auth::AuthenticatedUser;
 use crate::error::{ApiError, ApiResult};
 use crate::models::ApiResponse;
+use crate::paths::confine_to_vault_config;
 use crate::server::AppState;
 use chamber_vault::VaultCategory;
 use serde::{Deserialize, Serialize};
@@ -100,6 +101,11 @@ pub async fn create_vault(
         return Err(ApiError::BadRequest("Master password is required".to_string()));
     }
 
+    let path = match request.path {
+        Some(path) => Some(confine_to_vault_config(&path)?),
+        None => None,
+    };
+
     // Parse category
     let vault_category = match request
         .category
@@ -123,7 +129,7 @@ pub async fn create_vault(
         .await
         .create_vault(
             request.name.clone(),
-            request.path,
+            path,
             vault_category,
             request.description.clone(),
             &request.master_password,

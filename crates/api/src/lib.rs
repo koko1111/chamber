@@ -2,6 +2,7 @@ pub mod auth;
 pub mod error;
 pub mod handlers;
 pub mod models;
+mod paths;
 pub mod server;
 
 pub use auth::{AuthState, TokenClaims};
