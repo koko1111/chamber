@@ -711,7 +711,7 @@ async fn test_read_scopes_omit_secret_bytes() -> color_eyre::Result<()> {
     let secret = "SENTINEL-SECRET-VALUE-abcdefghijklmnopqrstuvwxyz0123456789";
     let item_id = ctx.create_test_item("Listed Secret", "password", secret).await?;
 
-    let read_token = ctx
+    let (read_token, _) = ctx
         .auth
         .generate_token(vec!["read:items".to_string()])
         .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
@@ -734,7 +734,7 @@ async fn test_read_scopes_omit_secret_bytes() -> color_eyre::Result<()> {
     let fetched: ApiResponse<ItemResponse> = serde_json::from_str(&get_body)?;
     assert!(fetched.data.preview.is_none());
 
-    let search_token = ctx
+    let (search_token, _) = ctx
         .auth
         .generate_token(vec!["vault:read".to_string()])
         .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
@@ -771,7 +771,7 @@ async fn test_read_scopes_omit_secret_bytes() -> color_eyre::Result<()> {
     assert!(!full_search.text().contains("SENTINEL"));
 
     // Full values stay available on the reveal endpoint.
-    let reveal_token = ctx
+    let (reveal_token, _) = ctx
         .auth
         .generate_token(vec!["reveal:values".to_string()])
         .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
@@ -797,7 +797,7 @@ async fn test_list_get_search_multibyte_secret_does_not_panic() -> color_eyre::R
     let secret = "é".repeat(30);
     let item_id = ctx.create_test_item("Multibyte Secret", "password", &secret).await?;
 
-    let read_token = ctx
+    let (read_token, _) = ctx
         .auth
         .generate_token(vec!["read:items".to_string()])
         .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
@@ -813,7 +813,7 @@ async fn test_list_get_search_multibyte_secret_does_not_panic() -> color_eyre::R
     get_response.assert_status_ok();
     assert!(!get_response.text().contains('é'));
 
-    let search_token = ctx
+    let (search_token, _) = ctx
         .auth
         .generate_token(vec!["vault:read".to_string()])
         .map_err(|error| color_eyre::eyre::eyre!("token: {error:?}"))?;
