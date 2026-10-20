@@ -89,7 +89,9 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 # Security
-jsonwebtoken = "10"
+# jsonwebtoken 10 requires exactly one crypto backend or encode/decode panic.
+# rust_crypto is pure Rust (no cmake/C toolchain) and builds on rustc 1.88.
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 
 
 [profile.release]
