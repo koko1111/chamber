@@ -77,9 +77,10 @@ pub async fn health_report(
 
     // Group reused passwords with an HMAC keyed by the server secret.
     // The digest is not copied onto the response.
+    let signing_key = state.auth.signing_key_bytes()?;
     let mut password_groups: HashMap<String, Vec<String>> = HashMap::new();
     for item in &password_items {
-        let hash = keyed_password_digest(&state.auth.secret, &item.value)?;
+        let hash = keyed_password_digest(&signing_key, &item.value)?;
         password_groups.entry(hash).or_default().push(item.name.clone());
     }
 

@@ -116,7 +116,8 @@ async fn test_health_report_omits_password_digest() -> color_eyre::Result<()> {
         "health report serialized the digest field"
     );
 
-    let mut mac = Hmac::<Sha256>::new_from_slice(&ctx.auth.secret).expect("hmac key");
+    let signing_key = ctx.auth.signing_key_bytes().expect("signing key");
+    let mut mac = Hmac::<Sha256>::new_from_slice(&signing_key).expect("hmac key");
     mac.update(secret.as_bytes());
     let hmac_digest = hex_encode(&mac.finalize().into_bytes());
     assert!(!text.contains(&hmac_digest), "health report returned the keyed digest");

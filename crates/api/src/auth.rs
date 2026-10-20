@@ -49,7 +49,12 @@ impl AuthState {
         Ok(())
     }
 
-    fn signing_key_bytes(&self) -> ApiResult<Vec<u8>> {
+    /// Returns a clone of the current signing key.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the signing-key mutex is poisoned.
+    pub fn signing_key_bytes(&self) -> ApiResult<Vec<u8>> {
         Ok(self
             .secret
             .lock()
