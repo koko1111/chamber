@@ -422,6 +422,11 @@ impl Vault {
         self.key.is_some()
     }
 
+    /// Drops the in-memory vault key so item routes cannot decrypt until the next unlock.
+    pub fn lock(&mut self) {
+        self.key = None;
+    }
+
     /// Retrieves a list of items from the database, decrypting their stored values.
     ///
     /// # Returns
@@ -1068,6 +1073,34 @@ mod lib_module_tests {
         })?;
 
         assert!(v.get_item_by_name("nope")?.is_none());
+
+        fs::remove_file(path).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_vault_lock_clears_in_memory_key() -> Result<()> {
+        let path = tmp_db("lock");
+        let mut v = Vault::open_or_create(Some(&path))?;
+        v.initialize("m")?;
+        v.unlock("m")?;
+        v.create_item(&NewItem {
+            name: "secret-note".into(),
+            kind: ItemKind::Note,
+            value: "plaintext-secret".into(),
+        })?;
+        assert!(v.is_unlocked());
+
+        v.lock();
+
+        assert!(!v.is_unlocked());
+        let err = v.list_items().unwrap_err().to_string();
+        assert!(err.contains("Locked"), "locked vault must not decrypt items, got {err}");
+
+        v.unlock("m")?;
+        let items = v.list_items()?;
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].value, "plaintext-secret");
 
         fs::remove_file(path).ok();
         Ok(())

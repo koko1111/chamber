@@ -1,6 +1,6 @@
 use crate::common::TestContext;
 use crate::common::fixtures::sample_login_request;
-use chamber_api::models::{ApiResponse, LoginRequest, LoginResponse};
+use chamber_api::models::{ApiResponse, ItemWithValueResponse, LoginRequest, LoginResponse};
 use http::StatusCode;
 use serde_json::json;
 mod common;
@@ -167,11 +167,9 @@ async fn test_session_lock_success() -> color_eyre::Result<()> {
 
     response.assert_status_ok();
 
-    // Verify the session is actually locked by trying to access items
+    // The token issued before lock must be rejected on the next call.
     let items_response = ctx.server.get("/api/v1/items").authorization_bearer(&token).await;
-
-    // Should still be authorized (token valid) but vault should be locked
-    items_response.assert_status(StatusCode::BAD_REQUEST); // Bad request due to locked vault
+    items_response.assert_status_unauthorized();
 
     Ok(())
 }
@@ -191,14 +189,14 @@ async fn test_session_unlock_success() -> color_eyre::Result<()> {
     let mut ctx = TestContext::new()?;
     let token = ctx.login().await?;
 
-    // First lock the session
-    let _lock_response = ctx
+    // Lock invalidates the token that was just issued.
+    let lock_response = ctx
         .server
         .post("/api/v1/session/lock")
         .authorization_bearer(&token)
         .await;
+    lock_response.assert_status_ok();
 
-    // Then unlock it
     let unlock_request = json!({
         "master_password": ctx.master_password
     });
@@ -210,11 +208,11 @@ async fn test_session_unlock_success() -> color_eyre::Result<()> {
         .json(&unlock_request)
         .await;
 
-    response.assert_status_ok();
+    response.assert_status_unauthorized();
 
-    // Verify we can now access items
-    let items_response = ctx.server.get("/api/v1/items").authorization_bearer(&token).await;
-
+    // A new login unlocks the vault and can read items again.
+    let new_token = ctx.login().await?;
+    let items_response = ctx.server.get("/api/v1/items").authorization_bearer(&new_token).await;
     items_response.assert_status_ok();
 
     Ok(())
@@ -268,11 +266,9 @@ async fn test_logout_success() -> color_eyre::Result<()> {
 
     response.assert_status_ok();
 
-    // Verify the vault is locked after logout
+    // The token issued before logout must be rejected on the next call.
     let items_response = ctx.server.get("/api/v1/items").authorization_bearer(&token).await;
-
-    // Token should still be valid but vault should be locked
-    items_response.assert_status(StatusCode::BAD_REQUEST);
+    items_response.assert_status_unauthorized();
 
     Ok(())
 }
@@ -283,6 +279,140 @@ async fn test_logout_without_auth() -> color_eyre::Result<()> {
 
     let response = ctx.server.post("/api/v1/auth/logout").await;
     response.assert_status_unauthorized();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_token_issued_before_logout_is_rejected() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    let token = ctx.login().await?;
+
+    let logout = ctx
+        .server
+        .post("/api/v1/auth/logout")
+        .authorization_bearer(&token)
+        .await;
+    logout.assert_status_ok();
+
+    let response = ctx.server.get("/api/v1/items").authorization_bearer(&token).await;
+    response.assert_status_unauthorized();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_token_issued_before_session_lock_is_rejected() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    let token = ctx.login().await?;
+
+    let lock = ctx
+        .server
+        .post("/api/v1/session/lock")
+        .authorization_bearer(&token)
+        .await;
+    lock.assert_status_ok();
+
+    let response = ctx.server.get("/api/v1/items").authorization_bearer(&token).await;
+    response.assert_status_unauthorized();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_logout_blocks_item_decrypt_until_unlock() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    let token = ctx.login().await?;
+    let secret = "logout-secret-value-not-for-locked-session";
+    let item_id = ctx.create_test_item("logout-secret", "note", secret).await?;
+
+    let logout = ctx
+        .server
+        .post("/api/v1/auth/logout")
+        .authorization_bearer(&token)
+        .await;
+    logout.assert_status_ok();
+
+    let denied = ctx
+        .server
+        .get(&format!("/api/v1/items/{item_id}/value"))
+        .authorization_bearer(&token)
+        .await;
+    denied.assert_status_unauthorized();
+    assert!(
+        !denied.text().contains(secret),
+        "item routes must not return the secret after logout"
+    );
+
+    let new_token = ctx.login().await?;
+    let revealed = ctx
+        .server
+        .get(&format!("/api/v1/items/{item_id}/value"))
+        .authorization_bearer(&new_token)
+        .await;
+    revealed.assert_status_ok();
+    let body: ApiResponse<ItemWithValueResponse> = revealed.json();
+    assert_eq!(body.data.value, secret);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_session_lock_blocks_item_decrypt_until_unlock() -> color_eyre::Result<()> {
+    let mut ctx = TestContext::new()?;
+    let token = ctx.login().await?;
+    let secret = "lock-secret-value-not-for-locked-session";
+    let item_id = ctx.create_test_item("lock-secret", "note", secret).await?;
+
+    let lock = ctx
+        .server
+        .post("/api/v1/session/lock")
+        .authorization_bearer(&token)
+        .await;
+    lock.assert_status_ok();
+
+    let denied = ctx
+        .server
+        .get(&format!("/api/v1/items/{item_id}/value"))
+        .authorization_bearer(&token)
+        .await;
+    denied.assert_status_unauthorized();
+    assert!(
+        !denied.text().contains(secret),
+        "item routes must not return the secret after session lock"
+    );
+
+    let new_token = ctx.login().await?;
+    let revealed = ctx
+        .server
+        .get(&format!("/api/v1/items/{item_id}/value"))
+        .authorization_bearer(&new_token)
+        .await;
+    revealed.assert_status_ok();
+    let body: ApiResponse<ItemWithValueResponse> = revealed.json();
+    assert_eq!(body.data.value, secret);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_login_expires_at_is_about_one_hour() -> color_eyre::Result<()> {
+    let ctx = TestContext::new()?;
+    let before = chrono::Utc::now();
+
+    let response = ctx
+        .server
+        .post("/api/v1/auth/login")
+        .json(&sample_login_request())
+        .await;
+    response.assert_status_ok();
+
+    let body: ApiResponse<LoginResponse> = response.json();
+    let minutes = body.data.expires_at.signed_duration_since(before).num_minutes();
+    assert!(
+        (45..=90).contains(&minutes),
+        "login expires_at should be about 1 hour, got {minutes} minutes"
+    );
 
     Ok(())
 }

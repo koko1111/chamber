@@ -1,9 +1,9 @@
 use axum::extract::{FromRequestParts, State};
 use axum::http::request::Parts;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
@@ -11,8 +11,9 @@ use crate::server::AppState;
 
 #[derive(Debug, Clone)]
 pub struct AuthState {
-    pub secret: Vec<u8>,
-    pub vault_unlocked: Arc<std::sync::Mutex<bool>>,
+    /// Shared so every clone used by middleware verifies with the current key.
+    pub secret: Arc<Mutex<Vec<u8>>>,
+    pub vault_unlocked: Arc<Mutex<bool>>,
 }
 
 impl Default for AuthState {
@@ -28,9 +29,32 @@ impl AuthState {
         rand::Rng::fill(&mut rand::rng(), &mut secret[..]);
 
         Self {
-            secret,
-            vault_unlocked: Arc::new(std::sync::Mutex::new(false)),
+            secret: Arc::new(Mutex::new(secret)),
+            vault_unlocked: Arc::new(Mutex::new(false)),
         }
+    }
+
+    /// Replaces the JWT signing key so every previously issued token fails verification.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the signing-key mutex is poisoned.
+    pub fn rotate_secret(&self) -> ApiResult<()> {
+        let mut secret = self
+            .secret
+            .lock()
+            .map_err(|_| ApiError::InternalError("Auth secret lock poisoned".to_string()))?;
+        rand::Rng::fill(&mut rand::rng(), &mut secret[..]);
+        drop(secret);
+        Ok(())
+    }
+
+    fn signing_key_bytes(&self) -> ApiResult<Vec<u8>> {
+        Ok(self
+            .secret
+            .lock()
+            .map_err(|_| ApiError::InternalError("Auth secret lock poisoned".to_string()))?
+            .clone())
     }
 
     pub fn set_vault_unlocked(&self, unlocked: bool) {
@@ -54,12 +78,16 @@ impl AuthState {
     /// - Token expiration timestamp conversion fails
     /// - Token issue timestamp conversion fails
     /// - Token generation process fails
-    pub fn generate_token(&self, scopes: Vec<String>) -> ApiResult<String> {
-        let expiration = Utc::now() + Duration::hours(1);
+    ///
+    /// The returned timestamp is the same instant stored in the token `exp` claim.
+    pub fn generate_token(&self, scopes: Vec<String>) -> ApiResult<(String, DateTime<Utc>)> {
+        let expiration_secs = (Utc::now() + Duration::hours(1)).timestamp();
+        let expiration = DateTime::from_timestamp(expiration_secs, 0)
+            .ok_or_else(|| ApiError::InternalError("Token expiration timestamp overflow".to_string()))?;
 
         let claims = TokenClaims {
             sub: "api-user".to_string(),
-            exp: usize::try_from(expiration.timestamp())
+            exp: usize::try_from(expiration_secs)
                 .map_err(|_| ApiError::InternalError("Token expiration timestamp overflow".to_string()))?,
             iat: usize::try_from(Utc::now().timestamp())
                 .map_err(|_| ApiError::InternalError("Token issue timestamp overflow".to_string()))?,
@@ -67,8 +95,10 @@ impl AuthState {
             scopes,
         };
 
-        encode(&Header::default(), &claims, &EncodingKey::from_secret(&self.secret))
-            .map_err(|e| ApiError::InternalError(format!("Token generation failed: {e}")))
+        let secret = self.signing_key_bytes()?;
+        let token = encode(&Header::default(), &claims, &EncodingKey::from_secret(&secret))
+            .map_err(|e| ApiError::InternalError(format!("Token generation failed: {e}")))?;
+        Ok((token, expiration))
     }
 
     /// # Errors
@@ -78,7 +108,8 @@ impl AuthState {
     /// - The token signature is invalid
     /// - The token format is incorrect
     pub fn verify_token(&self, token: &str) -> ApiResult<TokenClaims> {
-        decode::<TokenClaims>(token, &DecodingKey::from_secret(&self.secret), &Validation::default())
+        let secret = self.signing_key_bytes()?;
+        decode::<TokenClaims>(token, &DecodingKey::from_secret(&secret), &Validation::default())
             .map(|data| data.claims)
             .map_err(|_| ApiError::Unauthorized)
     }
