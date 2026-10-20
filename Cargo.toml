@@ -89,7 +89,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 
 # Security
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 
 
 [profile.release]
