@@ -90,12 +90,14 @@ impl Db {
     /// This function performs the following operations:
     /// 1. Serializes the given KDF (Key Derivation Function) parameters to a JSON string.
     /// 2. Serializes the provided wrapped vault key to a byte vector (JSON format).
-    /// 3. Deletes any existing data from the `meta` table in the database.
-    /// 4. Inserts a new record into the `meta` table with the following fields:
+    /// 3. Upserts a single record into the `meta` table with the following fields:
     ///    - `id`: The primary key, hardcoded as `1`.
     ///    - `kdf_params`: The serialized KDF parameters.
     ///    - `wrapped_key`: The serialized wrapped vault key.
     ///    - `verifier`: A cryptographic verifier (byte slice).
+    ///
+    /// The upsert is one statement (`INSERT ... ON CONFLICT(id) DO UPDATE`), so a failed
+    /// write leaves the previous wrapped key in place.
     ///
     /// # Arguments
     /// * `kdf` - A reference to the `KdfParams` struct containing key derivation function parameters.
@@ -109,7 +111,7 @@ impl Db {
     /// # Errors
     /// Returns an error if:
     /// * Serialization of `kdf` or `wrapped` fails.
-    /// * Any SQL operation (DELETE or INSERT) fails.
+    /// * The SQL upsert fails.
     ///
     /// # Notes
     /// * This function assumes that the `meta` table already exists and has the following schema:
@@ -119,9 +121,12 @@ impl Db {
     pub fn write_meta(&self, kdf: &KdfParams, wrapped: &WrappedVaultKey, verifier: &[u8]) -> Result<()> {
         let kdf_json = serde_json::to_string(kdf)?;
         let wrapped_json = serde_json::to_vec(wrapped)?;
-        self.conn.execute("DELETE FROM meta", [])?;
         self.conn.execute(
-            "INSERT INTO meta (id, kdf_params, wrapped_key, verifier) VALUES (1, ?, ?, ?)",
+            "INSERT INTO meta (id, kdf_params, wrapped_key, verifier) VALUES (1, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+                kdf_params = excluded.kdf_params,
+                wrapped_key = excluded.wrapped_key,
+                verifier = excluded.verifier",
             params![kdf_json, wrapped_json, verifier],
         )?;
         Ok(())
@@ -463,6 +468,46 @@ mod tests {
         assert_eq!(kdf3.salt, kdf_new.salt);
         assert_eq!(wrapped3.ciphertext, wrapped_new.ciphertext);
         assert_eq!(verifier3, verifier_new);
+
+        fs::remove_file(path).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_failed_meta_write_keeps_previous_row() -> Result<()> {
+        let path = tmp_path("meta_write_failure");
+        let db = Db::open(&path)?;
+
+        let kdf = small_kdf();
+        let wrapped = mk_wrapped(0x11);
+        let verifier = vec![0xDE, 0xAD, 0xBE, 0xEF];
+        db.write_meta(&kdf, &wrapped, &verifier)?;
+
+        // Abort any later meta insert or update so write_meta fails after a row exists.
+        db.conn.execute_batch(
+            r"
+            CREATE TRIGGER fail_meta_insert BEFORE INSERT ON meta
+            BEGIN
+                SELECT RAISE(ABORT, 'forced meta write failure');
+            END;
+            CREATE TRIGGER fail_meta_update BEFORE UPDATE ON meta
+            BEGIN
+                SELECT RAISE(ABORT, 'forced meta write failure');
+            END;
+            ",
+        )?;
+
+        let kdf_new = KdfParams {
+            salt: vec![9, 9, 9, 9, 9, 9, 9, 9],
+            ..kdf
+        };
+        let write_err = db.write_meta(&kdf_new, &mk_wrapped(0x22), &[0xAA, 0xBB]);
+        assert!(write_err.is_err(), "forced meta write must fail");
+
+        let (kdf2, wrapped2, verifier2) = db.read_meta()?.expect("previous meta row remains");
+        assert_eq!(kdf2.salt, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(wrapped2.ciphertext, wrapped.ciphertext);
+        assert_eq!(verifier2, verifier);
 
         fs::remove_file(path).ok();
         Ok(())

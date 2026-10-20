@@ -537,9 +537,11 @@ impl Vault {
     ///
     /// # Errors
     /// This function will return an error if:
+    /// - The vault is locked (`self.key` is missing).
     /// - The item with the specified ID does not exist.
     /// - There is a failure in the underlying database operation.
     pub fn delete_item(&mut self, id: u64) -> Result<()> {
+        self.key.as_ref().ok_or_else(|| eyre!("Locked"))?;
         self.db.delete_item(id)
     }
 
@@ -960,6 +962,34 @@ mod lib_module_tests {
         let items_after = v.list_items()?;
         assert_eq!(items_after.len(), 1);
         assert_eq!(items_after[0].name, "alpha");
+
+        fs::remove_file(path).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_item_when_locked_errors_and_keeps_row() -> Result<()> {
+        let path = tmp_db("locked_delete");
+        let mut v = Vault::open_or_create(Some(&path))?;
+        v.initialize("m")?;
+        v.unlock("m")?;
+        v.create_item(&NewItem {
+            name: "keep-me".into(),
+            kind: ItemKind::Note,
+            value: "secret".into(),
+        })?;
+        let id = v.list_items()?[0].id;
+
+        v.key = None;
+        let result = v.delete_item(id);
+        assert!(result.is_err(), "delete_item on a locked vault must fail");
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("Locked"), "expected Locked, got {err}");
+
+        let rows = v.db.list_items()?;
+        assert_eq!(rows.len(), 1, "locked delete must not remove the row");
+        assert_eq!(rows[0].id, id);
+        assert_eq!(rows[0].name, "keep-me");
 
         fs::remove_file(path).ok();
         Ok(())

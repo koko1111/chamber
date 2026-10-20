@@ -410,43 +410,53 @@ impl VaultRegistry {
     ///
     /// - If the vault with the specified `vault_id` is not found in the vault list, an error is returned.
     /// - If the vault manager contains only one vault, deletion is prohibited, and an error is returned.
-    /// - If `delete_file` is `true` and the associated vault's physical file exists, the file will be deleted from the filesystem.
     /// - If the vault being deleted is the active vault, another vault is automatically selected as the active one.
     /// - The vault is removed from the internal list of vaults, and the manager's state is saved.
+    /// - Only after that save succeeds, and only when `delete_file` is `true`, the vault database and its `-wal` and `-shm` sidecars are deleted.
     ///
     /// # Note
     /// - Ensure at least one vault remains in the manager to avoid errors.
     /// - Consider the implications of allowing physical file deletion (`delete_file`) if there are no backups.
     pub fn delete_vault(&mut self, vault_id: &str, delete_file: bool) -> Result<()> {
-        let vault = self
+        let vault_path = self
             .vaults
             .get(vault_id)
-            .ok_or_else(|| eyre!("Vault with ID '{}' not found", vault_id))?;
+            .ok_or_else(|| eyre!("Vault with ID '{}' not found", vault_id))?
+            .path
+            .clone();
 
-        // Delete physical file if requested
-        if delete_file && vault.path.exists() {
-            fs::remove_file(&vault.path)?;
-        }
-
-        // If this was the active vault, handle the active vault switching
-        if self.active_vault_id.as_ref() == Some(&String::from(vault_id)) {
+        if self.active_vault_id.as_deref() == Some(vault_id) {
             if self.vaults.len() > 1 {
-                // There are other vaults, switch to one of them
                 let next_vault_id = self
                     .vaults
                     .keys()
-                    .find(|&id| id != vault_id)
+                    .find(|id| id.as_str() != vault_id)
                     .ok_or_else(|| eyre!("No alternative vault found"))?
                     .clone();
-                self.set_active_vault(&next_vault_id)?;
+                if let Some(next) = self.vaults.get_mut(&next_vault_id) {
+                    next.is_active = true;
+                    next.last_accessed = OffsetDateTime::now_utc();
+                }
+                self.active_vault_id = Some(next_vault_id);
             } else {
-                // This is the only vault, just clear the active vault
                 self.active_vault_id = None;
             }
         }
 
         self.vaults.remove(vault_id);
         self.save()?;
+
+        if delete_file {
+            for path in [
+                vault_path.clone(),
+                sqlite_sidecar(&vault_path, "-wal"),
+                sqlite_sidecar(&vault_path, "-shm"),
+            ] {
+                if path.exists() {
+                    fs::remove_file(path)?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -537,6 +547,12 @@ impl VaultRegistry {
 
         Ok(vault_id)
     }
+}
+
+fn sqlite_sidecar(path: &Path, suffix: &str) -> PathBuf {
+    let mut os = path.as_os_str().to_os_string();
+    os.push(suffix);
+    PathBuf::from(os)
 }
 
 fn default_db_path() -> Result<PathBuf> {
@@ -998,6 +1014,73 @@ mod tests {
         assert!(result.is_ok());
         assert!(registry.get_vault(test_id).is_none());
         assert!(!vault_path.exists()); // File should be deleted
+    }
+
+    #[test]
+    fn test_delete_vault_save_failure_leaves_sqlite_wal_and_shm() {
+        let (mut registry, temp_dir) = create_temp_registry();
+        let drop_id = "550e8400-e29b-41d4-a716-446655440000";
+        let keep_id = "550e8400-e29b-41d4-a716-446655440001";
+
+        let vault_path = temp_dir.path().join("drop.sqlite3");
+        let wal_path = PathBuf::from(format!("{}-wal", vault_path.display()));
+        let shm_path = PathBuf::from(format!("{}-shm", vault_path.display()));
+        std::fs::write(&vault_path, b"sqlite").expect("sqlite file");
+        std::fs::write(&wal_path, b"wal").expect("wal file");
+        std::fs::write(&shm_path, b"shm").expect("shm file");
+
+        let mut drop_vault = create_test_vault_info(drop_id, "Drop", VaultCategory::Personal);
+        drop_vault.path = vault_path.clone();
+        let mut keep_vault = create_test_vault_info(keep_id, "Keep", VaultCategory::Work);
+        keep_vault.path = temp_dir.path().join("keep.sqlite3");
+        std::fs::write(&keep_vault.path, b"keep").expect("keep file");
+
+        registry.vaults.insert(drop_id.to_string(), drop_vault);
+        registry.vaults.insert(keep_id.to_string(), keep_vault);
+        registry.active_vault_id = Some(drop_id.to_string());
+
+        let blocker = temp_dir.path().join("not-a-directory");
+        std::fs::write(&blocker, b"file").expect("blocker");
+        registry.registry_path = blocker.join("registry.json");
+
+        let result = registry.delete_vault(drop_id, true);
+        assert!(result.is_err(), "registry save must fail");
+        assert!(vault_path.exists(), "sqlite file must remain when save fails");
+        assert!(wal_path.exists(), "wal file must remain when save fails");
+        assert!(shm_path.exists(), "shm file must remain when save fails");
+    }
+
+    #[test]
+    fn test_delete_vault_removes_wal_and_shm_after_successful_save() {
+        let (mut registry, temp_dir) = create_temp_registry();
+        let drop_id = "550e8400-e29b-41d4-a716-446655440000";
+        let keep_id = "550e8400-e29b-41d4-a716-446655440001";
+
+        let vault_path = temp_dir.path().join("drop.sqlite3");
+        let wal_path = PathBuf::from(format!("{}-wal", vault_path.display()));
+        let shm_path = PathBuf::from(format!("{}-shm", vault_path.display()));
+        std::fs::write(&vault_path, b"sqlite").expect("sqlite file");
+        std::fs::write(&wal_path, b"wal").expect("wal file");
+        std::fs::write(&shm_path, b"shm").expect("shm file");
+
+        let mut drop_vault = create_test_vault_info(drop_id, "Drop", VaultCategory::Personal);
+        drop_vault.path = vault_path.clone();
+        let mut keep_vault = create_test_vault_info(keep_id, "Keep", VaultCategory::Work);
+        keep_vault.path = temp_dir.path().join("keep.sqlite3");
+        std::fs::write(&keep_vault.path, b"keep").expect("keep file");
+
+        registry.vaults.insert(drop_id.to_string(), drop_vault);
+        registry.vaults.insert(keep_id.to_string(), keep_vault);
+        registry.active_vault_id = Some(drop_id.to_string());
+
+        let result = registry.delete_vault(drop_id, true);
+        assert!(result.is_ok(), "delete_vault should succeed: {result:?}");
+        assert!(registry.get_vault(drop_id).is_none());
+        assert_eq!(registry.active_vault_id.as_deref(), Some(keep_id));
+        assert!(!vault_path.exists(), "sqlite file should be deleted after save");
+        assert!(!wal_path.exists(), "wal file should be deleted after save");
+        assert!(!shm_path.exists(), "shm file should be deleted after save");
+        assert!(temp_dir.path().join("keep.sqlite3").exists());
     }
 
     #[test]
