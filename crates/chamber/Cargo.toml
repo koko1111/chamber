@@ -14,7 +14,6 @@ readme = "../../README.md"
 
 
 [dependencies]
-chamber-backup = { workspace = true }
 chamber-secret-manager-cli = { workspace = true }
 chamber-ui = { workspace = true }
 chamber-vault = { workspace = true }

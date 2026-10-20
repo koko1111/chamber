@@ -1,8 +1,6 @@
-use chamber_backup::BackgroundService;
 use chamber_secret_manager_cli::Cli;
 use chamber_secret_manager_cli::handle_command;
 use chamber_ui::{App, run_app};
-use chamber_vault::Vault;
 use clap::Parser;
 use color_eyre::Result;
 #[cfg(not(windows))]
@@ -33,15 +31,8 @@ async fn main() -> Result<()> {
         }
     }
 
-    let vault = Vault::open_default()?;
-    let backup_config = vault.get_backup_config().unwrap_or_default();
-
-    if backup_config.enabled {
-        let background_service = BackgroundService::new(vault, backup_config);
-        background_service.start();
-    }
-
-    // TUI mode
+    // TUI mode. Backups start from the unlocked vault inside the UI, not from
+    // this still-locked default vault.
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     crossterm::execute!(

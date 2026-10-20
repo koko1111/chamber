@@ -18,11 +18,23 @@ pub trait VaultOperations {
     ///
     /// Note: Ensure to handle the `Result` properly to avoid runtime errors.
     fn list_items(&self) -> Result<Vec<Item>>;
+
+    /// Reports whether the vault key is available.
+    ///
+    /// Backup threads must not call `list_items` while this returns `false`.
+    /// The default is unlocked so existing vault doubles keep their behavior.
+    fn is_unlocked(&self) -> bool {
+        true
+    }
 }
 
 impl VaultOperations for Vault {
     fn list_items(&self) -> Result<Vec<Item>> {
         self.list_items()
+    }
+
+    fn is_unlocked(&self) -> bool {
+        Vault::is_unlocked(self)
     }
 }
 
@@ -53,6 +65,12 @@ impl<V: VaultOperations> BackupManager<V> {
     /// * An error occurs during the execution of the backup process (`perform_backup`).
     pub fn backup_if_needed(&mut self) -> Result<Option<PathBuf>> {
         if !self.config.enabled {
+            return Ok(None);
+        }
+
+        // A locked vault cannot list items. Skip this pass and try again on the
+        // next interval instead of calling `list_items` while `Vault.key` is empty.
+        if !self.vault.is_unlocked() {
             return Ok(None);
         }
 
@@ -125,7 +143,11 @@ impl<V: VaultOperations> BackupManager<V> {
         let filename = self.generate_backup_filename(&timestamp)?;
         let backup_path = self.config.backup_dir.join(&filename);
 
-        // Export the vault data
+        // Export the vault data. Refuse to query a locked vault from this path too,
+        // so a direct backup cannot observe ciphertext errors as an empty export.
+        if !self.vault.is_unlocked() {
+            return Err(eyre!("Vault is locked"));
+        }
         let items = self.vault.list_items()?;
 
         let export_format = match self.config.format.as_str() {
@@ -1014,6 +1036,49 @@ mod tests {
         // Should keep all backups since under limit
         let remaining_backups = manager.find_all_backups().unwrap();
         assert_eq!(remaining_backups.len(), 2);
+    }
+
+    #[test]
+    fn test_backup_thread_does_not_list_items_while_locked() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::thread;
+        use std::time::Duration;
+
+        struct LockedVault {
+            calls: std::sync::Arc<AtomicUsize>,
+        }
+
+        impl VaultOperations for LockedVault {
+            fn is_unlocked(&self) -> bool {
+                false
+            }
+
+            fn list_items(&self) -> Result<Vec<Item>> {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                Err(eyre!("Locked"))
+            }
+        }
+
+        let temp_dir = TempDir::new().unwrap();
+        let config = create_test_config(&temp_dir);
+        assert!(config.enabled);
+
+        let calls = std::sync::Arc::new(AtomicUsize::new(0));
+        let service = crate::service::BackgroundService::new(
+            LockedVault {
+                calls: std::sync::Arc::clone(&calls),
+            },
+            config,
+        );
+        service.start();
+        thread::sleep(Duration::from_millis(300));
+        service.stop();
+
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "backup thread called list_items while the vault was locked"
+        );
     }
 
     #[test]

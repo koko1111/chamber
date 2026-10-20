@@ -333,7 +333,7 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
             complex,
             memorable,
         } => {
-            let mut vault = Vault::open_or_create(None)?;
+            let mut vault = open_active_or_default()?;
             let master = prompt_secret("Enter master key: ")?;
             vault.unlock(&master)?;
 
@@ -430,7 +430,7 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
             recent,
             name,
         } => {
-            let mut vault = Vault::open_or_create(None)?;
+            let mut vault = open_active_or_default()?;
             let master = prompt_secret("Enter master key: ")?;
             vault.unlock(&master)?;
 
@@ -467,7 +467,7 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
         }
 
         Commands::Get { name, copy_value } => {
-            let mut vault = Vault::open_or_create(None)?;
+            let mut vault = open_active_or_default()?;
             let master = prompt_secret("Enter master key: ")?;
             vault.unlock(&master)?;
             if let Some(item) = vault.get_item_by_name(&name)? {
@@ -532,7 +532,7 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
             format,
             include_metadata: _,
         } => {
-            let mut vault = Vault::open_or_create(None)?;
+            let mut vault = open_active_or_default()?;
             let master = prompt_secret("Enter master key: ")?;
             vault.unlock(&master)?;
 
@@ -594,7 +594,7 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
             }
 
             let master = prompt_secret("Enter master key: ")?;
-            let mut vault = Vault::open_or_create(None)?;
+            let mut vault = open_active_or_default()?;
             vault.unlock(&master)?;
 
             let existing_items = vault.list_items()?;
@@ -785,8 +785,8 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
         }
 
         Commands::Backup(backup_cmd) => {
-            let vault = Vault::open_or_create(None)?;
-            let _ = handle_backup_command(vault, backup_cmd);
+            let vault = open_active_or_default()?;
+            handle_backup_command(vault, backup_cmd)?;
         }
         Commands::Registry(registry_cmd) => {
             let mut manager = VaultManager::new()?;
@@ -837,13 +837,30 @@ const fn get_type_emoji(item_type: ItemKind) -> &'static str {
     }
 }
 
+fn open_active_or_default() -> Result<Vault> {
+    match Vault::open_active() {
+        Ok(vault) => Ok(vault),
+        Err(_) => {
+            // No active vault is registered; use the default database.
+            Vault::open_default()
+        }
+    }
+}
+
 fn prompt_secret(prompt: &str) -> Result<String> {
     use std::io::{Write, stdout};
     print!("{prompt}");
     stdout().flush()?;
     // Read without echo on Windows/Linux/macOS
-    let pass = rpassword::prompt_password("")?;
-    Ok(pass)
+    read_secret("")
+}
+
+fn read_secret(prompt: &str) -> Result<String> {
+    #[cfg(test)]
+    if let Ok(value) = std::env::var("CHAMBER_TEST_MASTER_KEY") {
+        return Ok(value);
+    }
+    Ok(rpassword::prompt_password(prompt)?)
 }
 
 /// Searches for an item by name across all available vaults
@@ -1117,5 +1134,305 @@ mod handle_command_tests {
         };
         let err = handle_command(cmd).await.unwrap_err().to_string();
         assert!(err.contains("Input file does not exist"));
+    }
+
+    use std::sync::Mutex;
+
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: Mutex<()> = Mutex::new(());
+        LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<std::ffi::OsString>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+            let previous = std::env::var_os(key);
+            // Tests that redirect the vault registry take the process-wide lock first.
+            unsafe {
+                std::env::set_var(key, value);
+            }
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = self.previous.take() {
+                unsafe {
+                    std::env::set_var(self.key, previous);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var(self.key);
+                }
+            }
+        }
+    }
+
+    fn drive<T>(future: impl std::future::Future<Output = T>) -> T {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("failed to start test runtime")
+            .block_on(future)
+    }
+
+    fn isolated_config(name: &str) -> (std::sync::MutexGuard<'static, ()>, PathBuf, EnvVarGuard) {
+        let lock = env_lock();
+        let config_home = tmp_path(name);
+        std::fs::create_dir_all(&config_home).unwrap();
+        let guard = EnvVarGuard::set("XDG_CONFIG_HOME", &config_home);
+        (lock, config_home, guard)
+    }
+
+    #[test]
+    fn test_backup_command_error_propagates() {
+        let (_lock, _config_home, _guard) = isolated_config("backup_err");
+        let missing = tmp_path("missing-backup").with_extension("json");
+        let err = drive(handle_command(Commands::Backup(crate::backup::BackupCommand::Verify {
+            backup_path: missing,
+        })))
+        .expect_err("backup command errors must propagate")
+        .to_string();
+        assert!(
+            err.contains("does not exist") || err.contains("not found"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_add_and_list_follow_active_vault_after_registry_switch() {
+        let (_lock, config_home, _guard) = isolated_config("active_vault");
+        let alpha_path = config_home.join("alpha.sqlite3");
+        let beta_path = config_home.join("beta.sqlite3");
+        let alpha_password = "alpha-master-key";
+        let beta_password = "beta-master-key";
+
+        let (_alpha_id, _alpha) = Vault::create_new_vault(
+            "alpha".to_string(),
+            Some(alpha_path.clone()),
+            chamber_vault::VaultCategory::Testing,
+            None,
+            alpha_password,
+        )
+        .unwrap();
+        let (_beta_id, mut beta) = Vault::create_new_vault(
+            "beta".to_string(),
+            Some(beta_path.clone()),
+            chamber_vault::VaultCategory::Testing,
+            None,
+            beta_password,
+        )
+        .unwrap();
+        beta.unlock(beta_password).unwrap();
+        beta.create_item(&NewItem {
+            name: "beta-existing".to_string(),
+            kind: ItemKind::Note,
+            value: "from-beta".to_string(),
+        })
+        .unwrap();
+        drop(beta);
+
+        drive(handle_command(Commands::Registry(crate::vault::VaultCommand::Switch {
+            vault: "beta".to_string(),
+        })))
+        .unwrap();
+
+        let _key = EnvVarGuard::set("CHAMBER_TEST_MASTER_KEY", beta_password);
+        drive(handle_command(Commands::List {
+            r#type: None,
+            since: None,
+            recent: None,
+            name: None,
+        }))
+        .expect("list should open the active vault");
+
+        drive(handle_command(Commands::Add {
+            name: "beta-added".to_string(),
+            kind: "note".to_string(),
+            value: Some("via-cli".to_string()),
+            generate: false,
+            length: None,
+            simple: false,
+            complex: false,
+            memorable: false,
+        }))
+        .expect("add should write to the active vault");
+
+        let mut beta = Vault::open_or_create(Some(&beta_path)).unwrap();
+        beta.unlock(beta_password).unwrap();
+        let beta_names: Vec<String> = beta.list_items().unwrap().into_iter().map(|item| item.name).collect();
+        assert!(
+            beta_names.iter().any(|name| name == "beta-added"),
+            "active vault missing CLI add, found {beta_names:?}"
+        );
+        assert!(beta_names.iter().any(|name| name == "beta-existing"));
+
+        let mut alpha = Vault::open_or_create(Some(&alpha_path)).unwrap();
+        alpha.unlock(alpha_password).unwrap();
+        let alpha_names: Vec<String> = alpha.list_items().unwrap().into_iter().map(|item| item.name).collect();
+        assert!(
+            alpha_names.is_empty(),
+            "inactive vault should not receive the added item, found {alpha_names:?}"
+        );
+    }
+
+    fn assert_restore_temp_removed(config_home: &std::path::Path) {
+        let temp_db = config_home.join("chamber").join("vault.sqlite3.restore-tmp");
+        assert!(
+            !temp_db.exists(),
+            "temporary restore database should be removed: {}",
+            temp_db.display()
+        );
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = std::path::PathBuf::from(format!("{}{suffix}", temp_db.display()));
+            assert!(
+                !sidecar.exists(),
+                "temporary sidecar should be removed: {}",
+                sidecar.display()
+            );
+        }
+    }
+
+    #[test]
+    fn test_restore_failure_after_confirmation_keeps_previous_items() {
+        let (_lock, config_home, _guard) = isolated_config("restore_empty");
+        let password = "restore-master-key";
+        let _key = EnvVarGuard::set("CHAMBER_TEST_MASTER_KEY", password);
+
+        let mut vault = Vault::open_default().unwrap();
+        vault.initialize(password).unwrap();
+        vault.unlock(password).unwrap();
+        vault
+            .create_item(&NewItem {
+                name: "keep-me".to_string(),
+                kind: ItemKind::Note,
+                value: "original".to_string(),
+            })
+            .unwrap();
+        drop(vault);
+
+        // File name must not contain "backup" or "chamber"; those are detected as ChamberBackup.
+        let backup = config_home.join("items.json");
+        std::fs::write(&backup, "[]").unwrap();
+
+        let result = drive(handle_command(Commands::Backup(
+            crate::backup::BackupCommand::Restore {
+                backup_path: backup,
+                yes: true,
+            },
+        )));
+
+        let mut vault = Vault::open_default().unwrap();
+        vault.unlock(password).unwrap();
+        let items = vault.list_items().unwrap();
+        let err = result.expect_err("empty backup restore should fail after confirmation");
+        assert!(
+            err.to_string().contains("no items"),
+            "expected an empty-backup failure, got {err}"
+        );
+        assert_eq!(items.len(), 1, "previous items should remain after a failed restore");
+        assert_eq!(items[0].name, "keep-me");
+        assert_eq!(items[0].value, "original");
+        assert_restore_temp_removed(&config_home);
+    }
+
+    #[test]
+    fn test_restore_partial_import_failure_keeps_previous_items() {
+        let (_lock, config_home, _guard) = isolated_config("restore_partial");
+        let password = "restore-master-key";
+        let _key = EnvVarGuard::set("CHAMBER_TEST_MASTER_KEY", password);
+
+        let mut vault = Vault::open_default().unwrap();
+        vault.initialize(password).unwrap();
+        vault.unlock(password).unwrap();
+        vault
+            .create_item(&NewItem {
+                name: "keep-me".to_string(),
+                kind: ItemKind::Note,
+                value: "original".to_string(),
+            })
+            .unwrap();
+        drop(vault);
+
+        let backup = config_home.join("items.json");
+        std::fs::write(
+            &backup,
+            r#"[
+                {"name":"dup","kind":"note","value":"one","created_at":"2020-01-01T00:00:00Z","updated_at":"2020-01-01T00:00:00Z","notes":null},
+                {"name":"dup","kind":"note","value":"two","created_at":"2020-01-01T00:00:00Z","updated_at":"2020-01-01T00:00:00Z","notes":null}
+            ]"#,
+        )
+        .unwrap();
+
+        let result = drive(handle_command(Commands::Backup(
+            crate::backup::BackupCommand::Restore {
+                backup_path: backup,
+                yes: true,
+            },
+        )));
+
+        let mut vault = Vault::open_default().unwrap();
+        vault.unlock(password).unwrap();
+        let items = vault.list_items().unwrap();
+        let err = result.expect_err("partial import should fail the restore");
+        assert!(
+            err.to_string().contains("Failed to import"),
+            "expected an item import failure, got {err}"
+        );
+        assert_eq!(
+            items.len(),
+            1,
+            "previous items should remain when an item fails to import"
+        );
+        assert_eq!(items[0].name, "keep-me");
+        assert_eq!(items[0].value, "original");
+        assert_restore_temp_removed(&config_home);
+    }
+
+    #[test]
+    fn test_restore_success_swaps_in_imported_items() {
+        let (_lock, config_home, _guard) = isolated_config("restore_ok");
+        let password = "restore-master-key";
+        let _key = EnvVarGuard::set("CHAMBER_TEST_MASTER_KEY", password);
+
+        let mut vault = Vault::open_default().unwrap();
+        vault.initialize(password).unwrap();
+        vault.unlock(password).unwrap();
+        vault
+            .create_item(&NewItem {
+                name: "keep-me".to_string(),
+                kind: ItemKind::Note,
+                value: "original".to_string(),
+            })
+            .unwrap();
+        drop(vault);
+
+        let backup = config_home.join("items.json");
+        std::fs::write(
+            &backup,
+            r#"[{"name":"restored","kind":"note","value":"from-backup","created_at":"2020-01-01T00:00:00Z","updated_at":"2020-01-01T00:00:00Z","notes":null}]"#,
+        )
+        .unwrap();
+
+        drive(handle_command(Commands::Backup(
+            crate::backup::BackupCommand::Restore {
+                backup_path: backup,
+                yes: true,
+            },
+        )))
+        .expect("successful import should replace the live vault");
+
+        let mut vault = Vault::open_default().unwrap();
+        vault.unlock(password).unwrap();
+        let items = vault.list_items().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "restored");
+        assert_eq!(items[0].value, "from-backup");
+        assert_restore_temp_removed(&config_home);
     }
 }

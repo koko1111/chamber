@@ -502,7 +502,6 @@ dependencies = [
 name = "chamber-tui"
 version = "0.5.4"
 dependencies = [
- "chamber-backup",
  "chamber-secret-manager-cli",
  "chamber-ui",
  "chamber-vault",
@@ -520,6 +519,7 @@ version = "0.5.4"
 dependencies = [
  "arboard",
  "async-trait",
+ "chamber-backup",
  "chamber-import-export",
  "chamber-password-gen",
  "chamber-vault",
