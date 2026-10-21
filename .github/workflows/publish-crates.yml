@@ -1,0 +1,40 @@
+name: Publish crates
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Resolve publish order without uploading to crates.io
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Authenticate with crates.io
+        id: auth
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish workspace crates
+        uses: katyo/publish-crates@v2
+        with:
+          # Tag checkouts are detached, and this action cannot date-check a
+          # detached HEAD. Version bumps still gate what gets uploaded.
+          check-repo: false
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          registry-token: ${{ steps.auth.outputs.token }}

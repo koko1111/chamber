@@ -488,7 +488,7 @@ dependencies = [
 
 [[package]]
 name = "chamber-secret-manager-cli"
-version = "0.2.0"
+version = "0.5.4"
 dependencies = [
  "arboard",
  "chamber-api",

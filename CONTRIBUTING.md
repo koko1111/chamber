@@ -1,6 +1,8 @@
 # Contributing to Chamber 🤝
 
-Thank you for your interest in contributing to Chamber! We welcome contributions from everyone, whether you're fixing bugs, adding features, improving documentation, or helping with testing.
+Thank you for your interest in contributing to Chamber!
+We welcome contributions from everyone, whether you're fixing bugs,
+adding features, improving documentation, or helping with testing.
 
 ## 📋 Table of Contents
 
@@ -17,7 +19,9 @@ Thank you for your interest in contributing to Chamber! We welcome contributions
 
 ## 📜 Code of Conduct
 
-This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to the project maintainers.
+This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md).
+By participating, you are expected to uphold this code.
+Please report unacceptable behavior to the project maintainers.
 
 ## 🚀 Getting Started
 
@@ -50,7 +54,7 @@ cargo install flamegraph        # Performance profiling
 ## 🛠️ Development Setup
 1. **Fork and clone the repository**:
 ``` bash
-   git clone https://github.com/your-username/chamber.git
+   git clone https://github.com/koko1111/chamber.git
    cd chamber
 ```
 1. **Set up the development environment**:

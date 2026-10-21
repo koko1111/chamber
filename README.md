@@ -2,9 +2,11 @@
 A secure, local-first secrets manager built with Rust, featuring encrypted storage, intuitive terminal UI, 
 and comprehensive import/export capabilities.
 
-![CI](https://github.com/mikeleppane/chamber/workflows/CI/badge.svg)
-[![codecov](https://codecov.io/gh/mikeleppane/chamber/branch/main/graph/badge.svg)](https://codecov.io/gh/mikeleppane/chamber)
-[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/CodSpeedHQ/codspeed-rust)
+![CI](https://github.com/koko1111/chamber/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/koko1111/chamber/branch/main/graph/badge.svg)](https://codecov.io/gh/koko1111/chamber)
+<a href="https://codspeed.io/CodSpeedHQ/codspeed-rust">
+<img alt="CodSpeed Badge" src="https://img.shields.io/endpoint?url=https://codspeed.io/badge.json">
+</a>
 
 <img alt="Rust" src="https://img.shields.io/badge/Rust-1.88-orange">
 <img alt="License" src="https://img.shields.io/badge/License-MIT-blue">
@@ -73,20 +75,43 @@ and other secrets with strong cryptographic guarantees.
 #### From Source
 ```bash
 # Clone the repository
-git clone https://github.com/mikeleppane/chamber.git
+git clone https://github.com/koko1111/chamber.git
 cd chamber
 
-# Build the project
-cargo build --release
+# Build the locked dependency set from Cargo.lock
+cargo build --release --locked
 
 # Run Chamber
 ./target/release/chamber
 ```
 #### Using Cargo
-```bash
-cargo install chamber-tui
+Install the `v0.5.4` binary from this repository.
+`--locked` uses `Cargo.lock`.
+Third-party crates in that lockfile use the index
+`https://github.com/rust-lang/crates.io-index`.
 
+```bash
+cargo install --git https://github.com/koko1111/chamber.git --tag v0.5.4 --locked chamber-tui
 ```
+
+`chamber-api` 0.5.4 is the library crate for the REST server. Add it from the same git tag:
+
+```bash
+cargo add --git https://github.com/koko1111/chamber.git --tag v0.5.4 chamber-api
+```
+
+After [Publish crates](.github/workflows/publish-crates.yml) uploads `0.5.4` to crates.io, the registry commands are:
+
+```bash
+cargo install chamber-tui --version 0.5.4
+cargo add chamber-api@0.5.4
+```
+
+crates.io currently serves `0.5.3` for
+[chamber-tui](https://crates.io/crates/chamber-tui) and
+[chamber-api](https://crates.io/crates/chamber-api).
+That release still points at `https://github.com/mikeleppane/visualvault`.
+Use the git install above until `0.5.4` is published.
 
 #### Pre-built Binaries
 We provide pre-built binaries for multiple platforms as part of each release:
@@ -98,7 +123,30 @@ We provide pre-built binaries for multiple platforms as part of each release:
 - **Windows**: x86_64 (Intel/AMD 64-bit) - `chamber-windows-amd64.exe`
 - **macOS**: x86_64 (Intel 64-bit) - `chamber-macos-amd64`
 
-Download the latest release from [GitHub Releases](https://github.com/mikeleppane/chamber/releases).
+Download [Release v0.5.4](https://github.com/koko1111/chamber/releases/tag/v0.5.4):
+
+- [chamber-linux-amd64](https://github.com/koko1111/chamber/releases/download/v0.5.4/chamber-linux-amd64)
+- [chamber-linux-amd64-static](https://github.com/koko1111/chamber/releases/download/v0.5.4/chamber-linux-amd64-static)
+- [chamber-linux-arm64](https://github.com/koko1111/chamber/releases/download/v0.5.4/chamber-linux-arm64)
+- [chamber-macos-amd64](https://github.com/koko1111/chamber/releases/download/v0.5.4/chamber-macos-amd64)
+- [chamber-windows-amd64.exe](https://github.com/koko1111/chamber/releases/download/v0.5.4/chamber-windows-amd64.exe)
+
+#### Publishing the crates
+Tag pushes matching `v*` run `.github/workflows/publish-crates.yml`.
+That workflow authenticates with
+[`rust-lang/crates-io-auth-action@v1`](https://github.com/marketplace/actions/crates-io-auth-action)
+(crates.io trusted publishing, no long-lived token) and uploads the workspace with
+[`katyo/publish-crates@v2`](https://github.com/marketplace/actions/publish-crates),
+which publishes path crates in dependency order.
+
+A crate owner configures each publishable crate on crates.io with a trusted publisher:
+GitHub Actions, owner `koko1111`, repository `chamber`, workflow `publish-crates.yml`.
+The crates are `chamber-password-gen`, `chamber-vault`, `chamber-import-export`,
+`chamber-backup`, `chamber-ui`, `chamber-api`, `chamber-secret-manager-cli`,
+and `chamber-tui`, all at `0.5.4`.
+
+Direct dependencies that the lockfile pins for this release include
+`jsonwebtoken` 10.3.0 (`rust_crypto`) and `rpassword` 7.5.4.
 
 #### Docker Support
 We provide official Docker images for containerized deployments:
@@ -172,7 +220,7 @@ curl http://localhost:3000/api/v1/health
 {
   "data": {
     "status": "ok",
-    "version": "0.5.0",
+    "version": "0.5.4",
     "vault_status": "locked"
   }
 }
