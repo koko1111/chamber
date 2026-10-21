@@ -13,14 +13,13 @@ resolver = "2"
 
 [workspace.package]
 version = "0.5.4"
-edition = "2024"
+edition = "2026"
 rust-version = "1.88"
-authors = ["Mikko Leppänen <mleppan23@gmail.com>"]
-description = ""
+description = "TUI Secrets Vault"
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/mikeleppane/visualvault"
-repository = "https://github.com/mikeleppane/visualvault"
+homepage = "https://github.com/koko1111/chamber"
+repository = "https://github.com/koko1111/chamber"
 
 categories = ["command-line-utilities", "filesystem"]
 
