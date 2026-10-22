@@ -167,7 +167,7 @@ pub fn handle_stats_command(vault: &Vault) -> color_eyre::Result<()> {
         println!("  ✅ No duplicate names found!");
     } else {
         println!("  ⚠️  Found {} duplicate name(s):", duplicate_names.len());
-        duplicate_names.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by count descending
+        duplicate_names.sort_by_key(|entry| std::cmp::Reverse(entry.1)); // Sort by count descending
         for (name, count) in &duplicate_names {
             println!("    • '{name}' appears {count} times");
         }
@@ -191,7 +191,7 @@ pub fn handle_stats_command(vault: &Vault) -> color_eyre::Result<()> {
     if !old_items.is_empty() {
         println!("  ⚠️  Oldest items:");
         let mut sorted_old_items = old_items.clone();
-        sorted_old_items.sort_by(|a, b| a.1.cmp(&b.1)); // Sort by date ascending (oldest first)
+        sorted_old_items.sort_by_key(|entry| entry.1); // Sort by date ascending (oldest first)
 
         for (name, created_at) in sorted_old_items.iter().take(5) {
             let age = now - *created_at;
@@ -213,7 +213,7 @@ pub fn handle_stats_command(vault: &Vault) -> color_eyre::Result<()> {
         println!("──────────────────");
 
         let mut sorted_recent = recently_updated;
-        sorted_recent.sort_by(|a, b| b.1.cmp(&a.1)); // Sort by date descending (most recent first)
+        sorted_recent.sort_by_key(|entry| std::cmp::Reverse(entry.1)); // Sort by date descending (most recent first)
 
         println!("  📝 Recently updated items:");
         for (name, updated_at) in sorted_recent.iter().take(5) {

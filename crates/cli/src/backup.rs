@@ -508,10 +508,10 @@ fn handle_verify_backup(backup_path: &PathBuf) -> color_eyre::Result<()> {
     println!("   Size: {} bytes", metadata.len());
 
     // Try to get item count
-    if let Some(format) = chamber_import_export::detect_format_from_extension(backup_path) {
-        if let Ok(items) = chamber_import_export::import_items(backup_path, &format) {
-            println!("   Items: {}", items.len());
-        }
+    if let Some(format) = chamber_import_export::detect_format_from_extension(backup_path)
+        && let Ok(items) = chamber_import_export::import_items(backup_path, &format)
+    {
+        println!("   Items: {}", items.len());
     }
 
     Ok(())

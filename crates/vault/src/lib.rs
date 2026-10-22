@@ -915,7 +915,7 @@ mod lib_module_tests {
         // Wrong master returns error
         let mut v2 = Vault::open_or_create(Some(&path))?;
         let err = v2.unlock("wrong").unwrap_err().to_string();
-        assert!(!err.is_empty());
+        assert_ne!(err, "");
 
         fs::remove_file(path).ok();
         Ok(())
@@ -1048,7 +1048,7 @@ mod lib_module_tests {
         // Old master should no longer unlock; new one should
         let mut v2 = Vault::open_or_create(Some(&path))?;
         let err = v2.unlock("old-master").unwrap_err().to_string();
-        assert!(!err.is_empty());
+        assert_ne!(err, "");
 
         v2.unlock("new-master")?;
         let items = v2.list_items()?;

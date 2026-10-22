@@ -181,12 +181,12 @@ pub async fn run_app(app: &mut App) -> Result<()> {
             continue;
         }
 
-        if event::poll(std::time::Duration::from_millis(250))? {
-            if let Event::Key(key) = event::read()? {
-                app.update_activity().await;
-                if key.kind == KeyEventKind::Press && handle_key(app, key)? {
-                    break;
-                }
+        if event::poll(std::time::Duration::from_millis(250))?
+            && let Event::Key(key) = event::read()?
+        {
+            app.update_activity().await;
+            if key.kind == KeyEventKind::Press && handle_key(app, key)? {
+                break;
             }
         }
     }
@@ -228,14 +228,14 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<bool> {
                 // Handle paste based on current screen and focus
                 match app.screen {
                     Screen::Unlock => {
-                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                            if let Ok(text) = clipboard.get_text() {
-                                match app.unlock_focus {
-                                    UnlockField::Master => app.master_input.push_str(&text),
-                                    UnlockField::Confirm => {
-                                        if app.master_mode_is_setup {
-                                            app.master_confirm_input.push_str(&text);
-                                        }
+                        if let Ok(mut clipboard) = arboard::Clipboard::new()
+                            && let Ok(text) = clipboard.get_text()
+                        {
+                            match app.unlock_focus {
+                                UnlockField::Master => app.master_input.push_str(&text),
+                                UnlockField::Confirm => {
+                                    if app.master_mode_is_setup {
+                                        app.master_confirm_input.push_str(&text);
                                     }
                                 }
                             }
@@ -250,14 +250,14 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<bool> {
                                 }
                             }
                             AddItemField::Name => {
-                                if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                                    if let Ok(text) = clipboard.get_text() {
-                                        app.add_name.push_str(&text);
-                                        app.set_status(
-                                            format!("Pasted {} characters to name field", text.len()),
-                                            StatusType::Success,
-                                        );
-                                    }
+                                if let Ok(mut clipboard) = arboard::Clipboard::new()
+                                    && let Ok(text) = clipboard.get_text()
+                                {
+                                    app.add_name.push_str(&text);
+                                    app.set_status(
+                                        format!("Pasted {} characters to name field", text.len()),
+                                        StatusType::Success,
+                                    );
                                 }
                             }
                             AddItemField::Kind => {}
@@ -265,40 +265,39 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<bool> {
                         return Ok(false); // Prevent further processing
                     }
                     Screen::EditItem => {
-                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                            if let Ok(text) = clipboard.get_text() {
-                                app.edit_value.push_str(&text);
-                                app.set_status(
-                                    format!("Pasted {} characters to edit field", text.len()),
-                                    StatusType::Success,
-                                );
-                            }
+                        if let Ok(mut clipboard) = arboard::Clipboard::new()
+                            && let Ok(text) = clipboard.get_text()
+                        {
+                            app.edit_value.push_str(&text);
+                            app.set_status(
+                                format!("Pasted {} characters to edit field", text.len()),
+                                StatusType::Success,
+                            );
                         }
                         return Ok(false); // Prevent further processing
                     }
                     Screen::ChangeMaster => {
-                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                            if let Ok(text) = clipboard.get_text() {
-                                match app.ck_focus {
-                                    ChangeKeyField::Current => app.ck_current.push_str(&text),
-                                    ChangeKeyField::New => app.ck_new.push_str(&text),
-                                    ChangeKeyField::Confirm => app.ck_confirm.push_str(&text),
-                                }
+                        if let Ok(mut clipboard) = arboard::Clipboard::new()
+                            && let Ok(text) = clipboard.get_text()
+                        {
+                            match app.ck_focus {
+                                ChangeKeyField::Current => app.ck_current.push_str(&text),
+                                ChangeKeyField::New => app.ck_new.push_str(&text),
+                                ChangeKeyField::Confirm => app.ck_confirm.push_str(&text),
                             }
                         }
                         return Ok(false); // Prevent further processing
                     }
                     Screen::ImportExport => {
-                        if matches!(app.ie_focus, ImportExportField::Path) {
-                            if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                                if let Ok(text) = clipboard.get_text() {
-                                    app.ie_path.push_str(&text);
-                                    app.set_status(
-                                        format!("Pasted {} characters to path field", text.len()),
-                                        StatusType::Success,
-                                    );
-                                }
-                            }
+                        if matches!(app.ie_focus, ImportExportField::Path)
+                            && let Ok(mut clipboard) = arboard::Clipboard::new()
+                            && let Ok(text) = clipboard.get_text()
+                        {
+                            app.ie_path.push_str(&text);
+                            app.set_status(
+                                format!("Pasted {} characters to path field", text.len()),
+                                StatusType::Success,
+                            );
                         }
                         return Ok(false); // Prevent further processing
                     }
@@ -452,11 +451,9 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<bool> {
             KeyCode::Char('/' | 's') => {
                 app.search_mode = true;
             }
-            KeyCode::Esc => {
-                if !app.search_query.is_empty() {
-                    app.search_query.clear();
-                    app.update_filtered_items();
-                }
+            KeyCode::Esc if !app.search_query.is_empty() => {
+                app.search_query.clear();
+                app.update_filtered_items();
             }
             _ => {}
         },
@@ -547,11 +544,11 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Result<bool> {
                 app.toggle_value_visibility();
             }
             KeyCode::Char('c') => {
-                if let Some(item) = &app.view_item {
-                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                        let _ = clipboard.set_text(&item.value);
-                        app.set_status(format!("Copied '{}' to clipboard", item.name), StatusType::Success);
-                    }
+                if let Some(item) = &app.view_item
+                    && let Ok(mut clipboard) = arboard::Clipboard::new()
+                {
+                    let _ = clipboard.set_text(&item.value);
+                    app.set_status(format!("Copied '{}' to clipboard", item.name), StatusType::Success);
                 }
             }
             _ => {}

@@ -372,11 +372,11 @@ impl<V: VaultOperations> BackupManager<V> {
         let mut most_recent_time = OffsetDateTime::UNIX_EPOCH;
 
         for backup in backups {
-            if let Some(timestamp) = self.extract_timestamp_from_filename(&backup) {
-                if timestamp > most_recent_time {
-                    most_recent_time = timestamp;
-                    most_recent = Some(backup);
-                }
+            if let Some(timestamp) = self.extract_timestamp_from_filename(&backup)
+                && timestamp > most_recent_time
+            {
+                most_recent_time = timestamp;
+                most_recent = Some(backup);
             }
         }
 
@@ -395,12 +395,11 @@ impl<V: VaultOperations> BackupManager<V> {
         if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
             // Extract Unix timestamp from filename
             // Format: chamber_backup_YYYY-MM-DD_HH-MM-SSZ_TIMESTAMP.format
-            if let Some(timestamp_part) = filename.split('_').nth(4) {
-                if let Some(timestamp_str) = timestamp_part.split('.').next() {
-                    if let Ok(timestamp) = timestamp_str.parse::<i64>() {
-                        return OffsetDateTime::from_unix_timestamp(timestamp).ok();
-                    }
-                }
+            if let Some(timestamp_part) = filename.split('_').nth(4)
+                && let Some(timestamp_str) = timestamp_part.split('.').next()
+                && let Ok(timestamp) = timestamp_str.parse::<i64>()
+            {
+                return OffsetDateTime::from_unix_timestamp(timestamp).ok();
             }
         }
         None
@@ -564,7 +563,7 @@ mod tests {
         let manager = BackupManager::new(vault, config);
 
         let backups = manager.find_all_backups().unwrap();
-        assert!(backups.is_empty());
+        assert_eq!(backups, [] as [PathBuf; 0]);
     }
 
     #[test]
@@ -863,7 +862,7 @@ mod tests {
 
         let compressed_path = BackupManager::<MockVault>::compress_backup(&test_file).unwrap();
 
-        assert!(compressed_path.extension().unwrap() == "gz");
+        assert_eq!(compressed_path.extension().unwrap(), "gz");
         assert!(compressed_path.exists());
         assert!(!test_file.exists()); // Original should be removed
 

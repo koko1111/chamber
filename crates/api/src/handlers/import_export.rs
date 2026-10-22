@@ -160,11 +160,11 @@ pub async fn export_items_handler(
     let path = confine_to_vault_config(Path::new(&request.path))?;
 
     // Create parent directories if they don't exist
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| ApiError::InternalError(format!("Failed to create directory: {e}")))?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| ApiError::InternalError(format!("Failed to create directory: {e}")))?;
     }
 
     let mut items = state

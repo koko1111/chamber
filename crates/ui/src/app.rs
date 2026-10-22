@@ -1008,11 +1008,11 @@ impl App {
         match self.ie_mode {
             ImportExportMode::Export => {
                 // Create parent directories if they don't exist
-                if let Some(parent) = path.parent() {
-                    if !parent.exists() {
-                        std::fs::create_dir_all(parent)
-                            .map_err(|e| eyre!("Failed to create directory {}: {}", parent.display(), e))?;
-                    }
+                if let Some(parent) = path.parent()
+                    && !parent.exists()
+                {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| eyre!("Failed to create directory {}: {}", parent.display(), e))?;
                 }
 
                 export_items(&self.items, &format, &path)?;
@@ -1408,12 +1408,12 @@ impl App {
     }
 
     pub async fn check_auto_lock(&mut self) -> bool {
-        if let Some(service) = &self.auto_lock_service {
-            if service.activity_tracker.should_auto_lock().await {
-                self.auto_locked = true;
-                self.screen = Screen::Unlock;
-                return true;
-            }
+        if let Some(service) = &self.auto_lock_service
+            && service.activity_tracker.should_auto_lock().await
+        {
+            self.auto_locked = true;
+            self.screen = Screen::Unlock;
+            return true;
         }
         false
     }
@@ -1486,11 +1486,11 @@ mod tests {
         let started = std::time::Instant::now();
         let mut found = false;
         while started.elapsed() < Duration::from_secs(5) {
-            if let Ok(entries) = std::fs::read_dir(&backup_dir) {
-                if entries.flatten().any(|entry| entry.path().is_file()) {
-                    found = true;
-                    break;
-                }
+            if let Ok(entries) = std::fs::read_dir(&backup_dir)
+                && entries.flatten().any(|entry| entry.path().is_file())
+            {
+                found = true;
+                break;
             }
             std::thread::sleep(Duration::from_millis(50));
         }

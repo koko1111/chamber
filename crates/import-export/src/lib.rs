@@ -875,7 +875,7 @@ mod tests {
         assert_eq!(backup.version, "1.0");
         assert_eq!(backup.item_count, items.len());
         assert_eq!(backup.items.len(), items.len());
-        assert!(!backup.exported_at.is_empty());
+        assert_ne!(backup.exported_at, "");
 
         // Verify timestamp format
         let _: OffsetDateTime =
@@ -971,8 +971,8 @@ mod tests {
         let exported = ExportedItem::from(&item);
 
         // Should either have a valid timestamp or fallback to "unknown"
-        assert!(!exported.created_at.is_empty());
-        assert!(!exported.updated_at.is_empty());
+        assert_ne!(exported.created_at, "");
+        assert_ne!(exported.updated_at, "");
     }
 
     #[test]
