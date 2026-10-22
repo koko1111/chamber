@@ -161,7 +161,7 @@ cargo test
 cargo nextest run
 
 # Run specific test suite
-cargo test --package chamber-vault
+cargo test --package chamber-vault-fork
 
 # Run integration tests
 cargo test --test integration_tests

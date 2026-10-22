@@ -1,5 +1,5 @@
 [package]
-name = "chamber-backup"
+name = "chamber-backup-fork"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,10 +12,12 @@ keywords = ["backup"]
 categories.workspace = true
 readme = "README.md"
 
+[lib]
+name = "chamber_backup"
 
 [dependencies]
-chamber-vault = {workspace = true}
-chamber-import-export = {workspace = true}
+chamber-vault-fork = {workspace = true}
+chamber-import-export-fork = {workspace = true}
 time = {workspace = true}
 serde_json = {workspace = true}
 flate2 = {workspace = true}

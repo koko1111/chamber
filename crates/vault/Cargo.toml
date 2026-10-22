@@ -1,5 +1,5 @@
 [package]
-name = "chamber-vault"
+name = "chamber-vault-fork"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,6 +12,8 @@ keywords = ["vault", "encryption", "secrets", "storage"]
 categories.workspace = true
 readme = "README.md"
 
+[lib]
+name = "chamber_vault"
 
 [dependencies]
 argon2 = { workspace = true }

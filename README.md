@@ -91,27 +91,26 @@ Third-party crates in that lockfile use the index
 `https://github.com/rust-lang/crates.io-index`.
 
 ```bash
-cargo install --git https://github.com/koko1111/chamber.git --tag v0.5.4 --locked chamber-tui
+cargo install --git https://github.com/koko1111/chamber.git --tag v0.5.4 --locked chamber-tui-fork
 ```
 
-`chamber-api` 0.5.4 is the library crate for the REST server. Add it from the same git tag:
+The installed command is still `chamber`.
+`chamber-api-fork` 0.5.4 is the library crate for the REST server:
 
 ```bash
-cargo add --git https://github.com/koko1111/chamber.git --tag v0.5.4 chamber-api
+cargo add --git https://github.com/koko1111/chamber.git --tag v0.5.4 chamber-api-fork
 ```
 
 After [Publish crates](.github/workflows/publish-crates.yml) uploads `0.5.4` to crates.io, the registry commands are:
 
 ```bash
-cargo install chamber-tui --version 0.5.4
-cargo add chamber-api@0.5.4
+cargo install chamber-tui-fork --version 0.5.4
+cargo add chamber-api-fork@0.5.4
 ```
 
-crates.io currently serves `0.5.3` for
-[chamber-tui](https://crates.io/crates/chamber-tui) and
-[chamber-api](https://crates.io/crates/chamber-api).
-That release still points at `https://github.com/mikeleppane/visualvault`.
-Use the git install above until `0.5.4` is published.
+The original names `chamber-tui` and `chamber-api` stay at 0.5.3,
+owned by the previous publisher.
+This fork publishes `chamber-tui-fork` and `chamber-api-fork`.
 
 #### Pre-built Binaries
 We provide pre-built binaries for multiple platforms as part of each release:
@@ -133,17 +132,16 @@ Download [Release v0.5.4](https://github.com/koko1111/chamber/releases/tag/v0.5.
 
 #### Publishing the crates
 Tag pushes matching `v*` run `.github/workflows/publish-crates.yml`.
-That workflow authenticates with
-[`rust-lang/crates-io-auth-action@v1`](https://github.com/marketplace/actions/crates-io-auth-action)
-(crates.io trusted publishing, no long-lived token) and uploads the workspace with
-[`katyo/publish-crates@v2`](https://github.com/marketplace/actions/publish-crates),
-which publishes path crates in dependency order.
+The first upload uses the `CARGO_REGISTRY_TOKEN` repository secret,
+because trusted publishing cannot create a new crate name.
+[`katyo/publish-crates@v2`](https://github.com/marketplace/actions/publish-crates)
+publishes the path crates in dependency order.
 
-A crate owner configures each publishable crate on crates.io with a trusted publisher:
-GitHub Actions, owner `koko1111`, repository `chamber`, workflow `publish-crates.yml`.
-The crates are `chamber-password-gen`, `chamber-vault`, `chamber-import-export`,
-`chamber-backup`, `chamber-ui`, `chamber-api`, `chamber-secret-manager-cli`,
-and `chamber-tui`, all at `0.5.4`.
+The published names are `chamber-password-gen-fork`, `chamber-vault-fork`,
+`chamber-import-export-fork`, `chamber-backup-fork`, `chamber-ui-fork`,
+`chamber-api-fork`, `chamber-secret-manager-cli-fork`, and `chamber-tui-fork`,
+all at `0.5.4`.
+The `chamber` binary name is unchanged.
 
 Direct dependencies that the lockfile pins for this release include
 `jsonwebtoken` 10.3.0 (`rust_crypto`) and `rpassword` 7.5.4.
@@ -1660,7 +1658,7 @@ cargo test
 cargo nextest run
 
 # Run specific test suite
-cargo test --package chamber-vault
+cargo test --package chamber-vault-fork
 
 # Run integration tests
 cargo test --test integration

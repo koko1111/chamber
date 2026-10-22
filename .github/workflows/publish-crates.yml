@@ -25,9 +25,12 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Trusted publishing cannot create a crate name that does not exist yet.
+      # The first upload of the -fork crates uses the API token secret.
+      # After those names exist, remove the secret and this step supplies the token.
       - name: Authenticate with crates.io
         id: auth
-        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.dry_run == false) && secrets.CARGO_REGISTRY_TOKEN == '' }}
         uses: rust-lang/crates-io-auth-action@v1
 
       - name: Publish workspace crates
@@ -37,4 +40,4 @@ jobs:
           # detached HEAD. Version bumps still gate what gets uploaded.
           check-repo: false
           dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-          registry-token: ${{ steps.auth.outputs.token }}
+          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}

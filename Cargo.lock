@@ -422,15 +422,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-api"
+name = "chamber-api-fork"
 version = "0.5.4"
 dependencies = [
  "arboard",
  "axum",
  "axum-test",
- "chamber-import-export",
- "chamber-password-gen",
- "chamber-vault",
+ "chamber-import-export-fork",
+ "chamber-password-gen-fork",
+ "chamber-vault-fork",
  "chrono",
  "color-eyre",
  "dirs",
@@ -451,11 +451,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-backup"
+name = "chamber-backup-fork"
 version = "0.5.4"
 dependencies = [
- "chamber-import-export",
- "chamber-vault",
+ "chamber-import-export-fork",
+ "chamber-vault-fork",
  "color-eyre",
  "criterion",
  "flate2",
@@ -465,10 +465,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-import-export"
+name = "chamber-import-export-fork"
 version = "0.5.4"
 dependencies = [
- "chamber-vault",
+ "chamber-vault-fork",
  "color-eyre",
  "criterion",
  "serde",
@@ -478,7 +478,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-password-gen"
+name = "chamber-password-gen-fork"
 version = "0.5.4"
 dependencies = [
  "color-eyre",
@@ -487,15 +487,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-secret-manager-cli"
+name = "chamber-secret-manager-cli-fork"
 version = "0.5.4"
 dependencies = [
  "arboard",
- "chamber-api",
- "chamber-backup",
- "chamber-import-export",
- "chamber-password-gen",
- "chamber-vault",
+ "chamber-api-fork",
+ "chamber-backup-fork",
+ "chamber-import-export-fork",
+ "chamber-password-gen-fork",
+ "chamber-vault-fork",
  "chrono",
  "clap",
  "color-eyre",
@@ -508,12 +508,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-tui"
+name = "chamber-tui-fork"
 version = "0.5.4"
 dependencies = [
- "chamber-secret-manager-cli",
- "chamber-ui",
- "chamber-vault",
+ "chamber-secret-manager-cli-fork",
+ "chamber-ui-fork",
+ "chamber-vault-fork",
  "clap",
  "color-eyre",
  "crossterm 0.29.0",
@@ -523,15 +523,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-ui"
+name = "chamber-ui-fork"
 version = "0.5.4"
 dependencies = [
  "arboard",
  "async-trait",
- "chamber-backup",
- "chamber-import-export",
- "chamber-password-gen",
- "chamber-vault",
+ "chamber-backup-fork",
+ "chamber-import-export-fork",
+ "chamber-password-gen-fork",
+ "chamber-vault-fork",
  "chrono",
  "color-eyre",
  "dirs",
@@ -541,7 +541,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "chamber-vault"
+name = "chamber-vault-fork"
 version = "0.5.4"
 dependencies = [
  "argon2",

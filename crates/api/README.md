@@ -11,13 +11,13 @@ Install release `0.5.4` from the git tag.
 `registry+https://github.com/rust-lang/crates.io-index`.
 
 ```bash
-cargo add --git https://github.com/koko1111/chamber.git --tag v0.5.4 chamber-api
+cargo add --git https://github.com/koko1111/chamber.git --tag v0.5.4 chamber-api-fork
 ```
 
 After `.github/workflows/publish-crates.yml` publishes to crates.io:
 
 ```bash
-cargo add chamber-api@0.5.4
+cargo add chamber-api-fork@0.5.4
 ```
 
-The crate page is [chamber-api](https://crates.io/crates/chamber-api).
+The crate page will be [chamber-api-fork](https://crates.io/crates/chamber-api-fork).

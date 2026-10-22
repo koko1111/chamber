@@ -25,13 +25,13 @@ repository = "https://github.com/koko1111/chamber"
 categories = ["command-line-utilities", "filesystem"]
 
 [workspace.dependencies]
-chamber-secret-manager-cli = { path = "crates/cli", version = "0.5.4" }
-chamber-import-export = { path = "crates/import-export", version = "0.5.4" }
-chamber-password-gen = { path = "crates/password-gen", version = "0.5.4" }
-chamber-vault = { path = "crates/vault", version = "0.5.4" }
-chamber-ui = { path = "crates/ui", version = "0.5.4" }
-chamber-backup = { path = "crates/backup", version = "0.5.4" }
-chamber-api = { path = "crates/api", version = "0.5.4" }
+chamber-secret-manager-cli-fork = { path = "crates/cli", version = "0.5.4" }
+chamber-import-export-fork = { path = "crates/import-export", version = "0.5.4" }
+chamber-password-gen-fork = { path = "crates/password-gen", version = "0.5.4" }
+chamber-vault-fork = { path = "crates/vault", version = "0.5.4" }
+chamber-ui-fork = { path = "crates/ui", version = "0.5.4" }
+chamber-backup-fork = { path = "crates/backup", version = "0.5.4" }
+chamber-api-fork = { path = "crates/api", version = "0.5.4" }
 # Crypto dependencies
 argon2 = { version = "0.5.3", features = ["std"] }
 chacha20poly1305 = { version = "0.10.1", features = ["alloc", "std"] }
