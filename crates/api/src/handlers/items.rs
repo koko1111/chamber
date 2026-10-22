@@ -56,7 +56,7 @@ pub async fn list_items(
     match params.sort.as_deref() {
         Some("name") => filtered_items.sort_by(|a, b| a.name.cmp(&b.name)),
         Some("kind") => filtered_items.sort_by(|a, b| a.kind.as_str().cmp(b.kind.as_str())),
-        Some("updated_at") => filtered_items.sort_by(|a, b| a.updated_at.cmp(&b.updated_at)),
+        Some("updated_at") => filtered_items.sort_by_key(|item| item.updated_at),
         _ => filtered_items.sort_by(|a, b| a.name.cmp(&b.name)), // default
     }
 
@@ -666,6 +666,7 @@ fn levenshtein_distance(s1: &str, s2: &str) -> usize {
     for i in 0..=len1 {
         matrix[i][0] = i;
     }
+    #[allow(clippy::needless_range_loop)]
     for j in 0..=len2 {
         matrix[0][j] = j;
     }

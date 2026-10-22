@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 use tokio::time::{Duration as TokioDuration, sleep};
 use tracing::{debug, info, warn};
 
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub trait AutoLockCallback: Send + Sync {
     async fn on_auto_lock(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;

@@ -25,7 +25,7 @@ async fn test_health_endpoint() -> color_eyre::Result<()> {
 
     let body: ApiResponse<HealthResponse> = response.json();
     assert_eq!(body.data.status, "ok");
-    assert!(!body.data.version.is_empty());
+    assert_ne!(body.data.version, "");
 
     Ok(())
 }

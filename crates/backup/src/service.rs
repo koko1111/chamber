@@ -83,11 +83,11 @@ impl<V: VaultOperations + Send + 'static> BackgroundService<V> {
         thread::spawn(move || {
             while *running.lock().expect("Unable to acquire the lock for running") {
                 // Check for backup every hour
-                if let Ok(mut manager) = backup_manager.lock() {
-                    if let Err(e) = manager.backup_if_needed() {
-                        eprintln!("Backup failed: {e}");
-                        // Could send notification here
-                    }
+                if let Ok(mut manager) = backup_manager.lock()
+                    && let Err(e) = manager.backup_if_needed()
+                {
+                    eprintln!("Backup failed: {e}");
+                    // Could send notification here
                 }
 
                 // Sleep for 1 hour
