@@ -1,5 +1,5 @@
 [package]
-name = "chamber-ui"
+name = "chamber-ui-fork"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,11 +12,14 @@ keywords = ["ui", "tui", "user-interface"]
 categories.workspace = true
 readme = "README.md"
 
+[lib]
+name = "chamber_ui"
+
 [dependencies]
-chamber-vault = {workspace = true}
-chamber-backup = {workspace = true}
-chamber-password-gen = {workspace = true}
-chamber-import-export = {workspace = true}
+chamber-vault-fork = {workspace = true}
+chamber-backup-fork = {workspace = true}
+chamber-password-gen-fork = {workspace = true}
+chamber-import-export-fork = {workspace = true}
 dirs = { workspace = true }
 ratatui = { workspace = true }
 arboard = { workspace = true }

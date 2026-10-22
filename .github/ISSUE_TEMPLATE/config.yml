@@ -1,9 +1,9 @@
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Discussions
-    url: https://github.com/mikeleppane/chamber/discussions
+    url: https://github.com/koko1111/chamber/discussions
     about: Ask questions and discuss ideas with the community
   - name: 📚 Documentation
-    url: https://github.com/mikeleppane/chamber/wiki
+    url: https://github.com/koko1111/chamber/wiki
     about: Check out our documentation and guides
 

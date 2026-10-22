@@ -24,13 +24,13 @@ repository = "https://github.com/koko1111/chamber"
 categories = ["command-line-utilities", "filesystem"]
 
 [workspace.dependencies]
-chamber-secret-manager-cli = { path = "crates/cli" }
-chamber-import-export = { path = "crates/import-export" }
-chamber-password-gen = { path = "crates/password-gen" }
-chamber-vault = { path = "crates/vault" }
-chamber-ui = { path = "crates/ui" }
-chamber-backup = { path = "crates/backup" }
-chamber-api = { path = "crates/api" }
+chamber-secret-manager-cli-fork = { path = "crates/cli", version = "0.5.4" }
+chamber-import-export-fork = { path = "crates/import-export", version = "0.5.4" }
+chamber-password-gen-fork = { path = "crates/password-gen", version = "0.5.4" }
+chamber-vault-fork = { path = "crates/vault", version = "0.5.4" }
+chamber-ui-fork = { path = "crates/ui", version = "0.5.4" }
+chamber-backup-fork = { path = "crates/backup", version = "0.5.4" }
+chamber-api-fork = { path = "crates/api", version = "0.5.4" }
 # Crypto dependencies
 argon2 = { version = "0.5.3", features = ["std"] }
 chacha20poly1305 = { version = "0.10.1", features = ["alloc", "std"] }
@@ -62,7 +62,7 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5.43", features = ["derive"] }
 crossterm = "0.29.0"
 ratatui = "0.29.0"
-rpassword = "7.4.0"
+rpassword = "7.5.4"
 tui-textarea = "0.7"
 
 # Utilities
@@ -90,7 +90,7 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 # Security
 # jsonwebtoken 10 requires exactly one crypto backend or encode/decode panic.
 # rust_crypto is pure Rust (no cmake/C toolchain) and builds on rustc 1.88.
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
 
 
 [profile.release]
