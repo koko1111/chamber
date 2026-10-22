@@ -1,5 +1,5 @@
 [package]
-name = "chamber-import-export"
+name = "chamber-import-export-fork"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,9 +12,11 @@ keywords = ["import", "export", "csv", "json"]
 categories.workspace = true
 readme = "README.md"
 
+[lib]
+name = "chamber_import_export"
 
 [dependencies]
-chamber-vault = {workspace = true}
+chamber-vault-fork = {workspace = true}
 serde = { workspace = true }
 serde_json = { workspace = true }
 time = { workspace = true }

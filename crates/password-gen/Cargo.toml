@@ -1,5 +1,5 @@
 [package]
-name = "chamber-password-gen"
+name = "chamber-password-gen-fork"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,6 +12,8 @@ keywords = ["password", "generator", "security", "random"]
 categories.workspace = true
 readme = "README.md"
 
+[lib]
+name = "chamber_password_gen"
 
 [dependencies]
 rand = { workspace = true }
