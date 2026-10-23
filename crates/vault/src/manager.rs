@@ -757,10 +757,11 @@ mod tests {
             manager.registry.vaults.remove(&vault_id);
 
             // Try to delete the file manually if it's outside our temp directory
-            if !imported_vault_path.starts_with(temp_dir.path()) && imported_vault_path.exists() {
-                if let Err(e) = std::fs::remove_file(&imported_vault_path) {
-                    eprintln!("Warning: Failed to clean up test file {imported_vault_path:?}: {e}");
-                }
+            if !imported_vault_path.starts_with(temp_dir.path())
+                && imported_vault_path.exists()
+                && let Err(e) = std::fs::remove_file(&imported_vault_path)
+            {
+                eprintln!("Warning: Failed to clean up test file {imported_vault_path:?}: {e}");
             }
         }
 
@@ -964,6 +965,6 @@ mod tests {
         // For now, just test that config creation works
         assert!(config.enabled);
         assert_eq!(config.max_backups, 5);
-        assert!(temp_dir.path().join("backups") == config.backup_dir);
+        assert_eq!(temp_dir.path().join("backups"), config.backup_dir);
     }
 }

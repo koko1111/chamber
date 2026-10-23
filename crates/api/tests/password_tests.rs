@@ -21,7 +21,7 @@ async fn test_generate_password() -> color_eyre::Result<()> {
 
     let body: ApiResponse<PasswordResponse> = response.json();
     assert_eq!(body.data.password.len(), generate_request.length);
-    assert!(!body.data.strength.is_empty());
+    assert_ne!(body.data.strength, "");
 
     Ok(())
 }
@@ -48,7 +48,7 @@ async fn test_generate_memorable_password() -> color_eyre::Result<()> {
     response.assert_status_ok();
 
     let body: ApiResponse<PasswordResponse> = response.json();
-    assert!(!body.data.password.is_empty());
+    assert_ne!(body.data.password, "");
 
     Ok(())
 }

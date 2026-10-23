@@ -24,6 +24,18 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # GitHub rejects `secrets` inside a step `if`, so the presence check
+      # reads the token from the environment.
+      - name: Require crates.io API token
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::error::CARGO_REGISTRY_TOKEN is not set. Create a crates.io API token and add it as a repository secret. Trusted publishing cannot create the new -fork crate names."
+            exit 1
+          fi
+
       # The token is passed as a step input. GitHub rejects `secrets` inside
       # a step `if` condition, which made the previous workflow file invalid.
       # This token creates the new -fork crate names. Trusted publishing cannot

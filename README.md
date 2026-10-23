@@ -85,20 +85,21 @@ cargo build --release --locked
 ./target/release/chamber
 ```
 #### Using Cargo
-Install the `v0.5.4` binary from this repository.
+Install `chamber-tui-fork` 0.5.4 from the default branch of this repository.
+The `v0.5.4` git tag predates the renamed crates, so it cannot install them.
 `--locked` uses `Cargo.lock`.
 Third-party crates in that lockfile use the index
 `https://github.com/rust-lang/crates.io-index`.
 
 ```bash
-cargo install --git https://github.com/koko1111/chamber.git --tag v0.5.4 --locked chamber-tui-fork
+cargo install --git https://github.com/koko1111/chamber.git --locked chamber-tui-fork
 ```
 
 The installed command is still `chamber`.
 `chamber-api-fork` 0.5.4 is the library crate for the REST server:
 
 ```bash
-cargo add --git https://github.com/koko1111/chamber.git --tag v0.5.4 chamber-api-fork
+cargo add --git https://github.com/koko1111/chamber.git chamber-api-fork
 ```
 
 After [Publish crates](.github/workflows/publish-crates.yml) uploads `0.5.4` to crates.io, the registry commands are:

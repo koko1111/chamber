@@ -708,7 +708,7 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
                 } else {
                     // Interactive mode - show current value (masked for passwords)
                     let display_current = if matches!(item.kind, ItemKind::Password | ItemKind::ApiKey) {
-                        format!("{}***", &item.value.chars().take(3).collect::<String>())
+                        format!("{}***", item.value.chars().take(3).collect::<String>())
                     } else {
                         #[allow(clippy::redundant_clone)]
                         item.value.clone()
@@ -767,8 +767,8 @@ pub async fn handle_command(cmd: Commands) -> Result<()> {
                 println!(
                     "❌ Item '{}' not found{}.",
                     name,
-                    if vault_name.is_some() {
-                        format!(" in vault '{}'", vault_name.unwrap())
+                    if let Some(vault_name) = vault_name {
+                        format!(" in vault '{vault_name}'")
                     } else {
                         " in any vault".to_string()
                     }
@@ -870,19 +870,19 @@ fn find_item_across_vaults(item_name: &str) -> Result<(Vault, Option<Item>, Stri
     let vaults = manager.list_vaults();
 
     // First try the active vault
-    if let Ok(mut vault) = Vault::open_active() {
-        if let Ok(Some(vault_id)) = vault.get_vault_id() {
-            let master = prompt_secret(&format!(
-                "Enter master key for active vault ({}): ",
-                get_vault_display_name(&manager, &vault_id)
-            ))?;
+    if let Ok(mut vault) = Vault::open_active()
+        && let Ok(Some(vault_id)) = vault.get_vault_id()
+    {
+        let master = prompt_secret(&format!(
+            "Enter master key for active vault ({}): ",
+            get_vault_display_name(&manager, &vault_id)
+        ))?;
 
-            if vault.unlock(&master).is_ok() {
-                if let Ok(Some(item)) = vault.get_item_by_name(item_name) {
-                    let vault_name = get_vault_display_name(&manager, &vault_id);
-                    return Ok((vault, Some(item), vault_name));
-                }
-            }
+        if vault.unlock(&master).is_ok()
+            && let Ok(Some(item)) = vault.get_item_by_name(item_name)
+        {
+            let vault_name = get_vault_display_name(&manager, &vault_id);
+            return Ok((vault, Some(item), vault_name));
         }
     }
 
@@ -891,12 +891,11 @@ fn find_item_across_vaults(item_name: &str) -> Result<(Vault, Option<Item>, Stri
 
     for vault_info in vaults {
         // Skip if it's the active vault (already tried)
-        if let Ok(active_vault) = Vault::open_active() {
-            if let Ok(Some(active_id)) = active_vault.get_vault_id() {
-                if vault_info.id == active_id {
-                    continue;
-                }
-            }
+        if let Ok(active_vault) = Vault::open_active()
+            && let Ok(Some(active_id)) = active_vault.get_vault_id()
+            && vault_info.id == active_id
+        {
+            continue;
         }
 
         println!("🔍 Searching in vault: {} ({})", vault_info.name, vault_info.category);
@@ -952,12 +951,12 @@ fn suggest_similar_items_across_vaults(item_name: &str) -> Result<()> {
         // Try to open and search each vault (but don't prompt for password for suggestions)
         if let Ok(vault) = Vault::open_by_id(&vault_info.id) {
             // Only suggest from already unlocked vaults to avoid password prompts
-            if vault.is_unlocked() {
-                if let Ok(items) = vault.list_items() {
-                    for item in items {
-                        if is_similar_name(&item.name, item_name) {
-                            suggestions.push((item.name, item.kind, vault_info.name.clone()));
-                        }
+            if vault.is_unlocked()
+                && let Ok(items) = vault.list_items()
+            {
+                for item in items {
+                    if is_similar_name(&item.name, item_name) {
+                        suggestions.push((item.name, item.kind, vault_info.name.clone()));
                     }
                 }
             }

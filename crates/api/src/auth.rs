@@ -74,7 +74,7 @@ impl AuthState {
     /// - The mutex lock is poisoned or cannot be acquired
     #[must_use]
     pub fn is_vault_unlocked(&self) -> bool {
-        self.vault_unlocked.lock().map(|status| *status).unwrap_or(false)
+        self.vault_unlocked.lock().is_ok_and(|status| *status)
     }
 
     /// # Errors
@@ -146,6 +146,7 @@ where
 {
     type Rejection = ApiError;
 
+    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // Get the authorization header
         let auth_header = parts

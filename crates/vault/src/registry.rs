@@ -307,10 +307,10 @@ impl VaultRegistry {
         }
 
         // Update previous active vault
-        if let Some(prev_id) = &self.active_vault_id {
-            if let Some(prev_vault) = self.vaults.get_mut(prev_id) {
-                prev_vault.is_active = false;
-            }
+        if let Some(prev_id) = &self.active_vault_id
+            && let Some(prev_vault) = self.vaults.get_mut(prev_id)
+        {
+            prev_vault.is_active = false;
         }
 
         // Set a new active vault
@@ -1142,10 +1142,11 @@ mod tests {
             registry.vaults.remove(&vault_id);
 
             // Try to delete the copied file manually if it's outside our temp directory
-            if !copied_file_path.starts_with(temp_dir.path()) && copied_file_path.exists() {
-                if let Err(e) = std::fs::remove_file(&copied_file_path) {
-                    eprintln!("Warning: Failed to clean up test file {copied_file_path:?}: {e}");
-                }
+            if !copied_file_path.starts_with(temp_dir.path())
+                && copied_file_path.exists()
+                && let Err(e) = std::fs::remove_file(&copied_file_path)
+            {
+                eprintln!("Warning: Failed to clean up test file {copied_file_path:?}: {e}");
             }
         }
 

@@ -120,7 +120,7 @@ pub fn filter_and_sort_items(
     }
 
     // Sort by creation date (newest first)
-    filtered_items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    filtered_items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
 
     // Limit to recent items if specified
     if let Some(limit) = recent {

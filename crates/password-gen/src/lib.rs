@@ -380,7 +380,7 @@ mod tests {
         let password = config.generate().unwrap();
 
         assert_eq!(password.len(), 16);
-        assert!(!password.is_empty());
+        assert_ne!(password, "");
     }
 
     #[test]
@@ -536,7 +536,7 @@ mod tests {
         let config = PasswordConfig::new().with_length(0);
         let password = config.generate().unwrap();
         assert_eq!(password.len(), 4);
-        assert!(!password.is_empty());
+        assert_ne!(password, "");
     }
 
     #[test]
@@ -606,7 +606,7 @@ mod tests {
     fn test_memorable_password_basic() {
         let password = generate_memorable_password();
 
-        assert!(!password.is_empty());
+        assert_ne!(password, "");
         assert!(password.len() >= 8); // Should be reasonably long
         assert!(password.len() <= 20); // But not too long for memorable
 
@@ -655,7 +655,7 @@ mod tests {
 
         // Should be pronounceable (no consecutive consonants that are hard to pronounce)
         // This is a basic check - real syllable validation would be more complex
-        assert!(!letters_only.is_empty());
+        assert_ne!(letters_only, "");
     }
 
     #[test]
@@ -726,7 +726,7 @@ mod tests {
         for length in [4, 8, 16, 32, 64] {
             let password = generate_complex_password(length).unwrap();
             assert_eq!(password.len(), length);
-            assert!(!password.is_empty());
+            assert_ne!(password, "");
         }
     }
 
